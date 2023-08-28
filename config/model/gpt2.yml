@@ -1,0 +1,8 @@
+pretrain:
+  path: /vault/pretrains/huggingface/gpt2
+
+tokenizer:
+  pad_token: "|"
+
+optim:
+  lr: 1e-4

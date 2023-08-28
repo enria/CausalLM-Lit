@@ -1,0 +1,4 @@
+datamodule:
+  class_name: instruction.InstructionDM
+  args:
+    data_dir: /home/yadong/workspace/llama/hf_train/data/vqa_merge

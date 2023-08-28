@@ -1,0 +1,9 @@
+datamodule:
+  class_name: vqa.VQAMergeDM
+  args:
+    data_dir: /home/yadong/workspace/llama/hf_train/data/vqa_merge
+
+metrics:
+  name: f1
+  eval_calculate: true
+  

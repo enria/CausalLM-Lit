@@ -1,0 +1,6 @@
+weights
+wandb
+lightning_logs
+data_dir
+output
+*.pyc

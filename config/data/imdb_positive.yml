@@ -1,0 +1,8 @@
+datamodule:
+  class_name: imdb.PositiveIMDbDM
+  args:
+    val_batch_size: 256
+    data_dir: data_dir/imdb
+
+reward:
+  class_name: imdb.PositiveSentimentRewardModule

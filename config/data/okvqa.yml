@@ -1,0 +1,10 @@
+datamodule:
+  class_name: vqa.OKVQADM
+  args:
+    data_dir: /home/yadong/workspace/okvqa/datasets/train-full
+
+metrics:
+  name: vqa_acc
+  eval_calculate: true
+  origin: true
+  

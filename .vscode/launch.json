@@ -1,0 +1,272 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "New train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--warmup_rate","0",
+                "--batch_size","16",
+                "--model_config", "gpt2",
+                "--data_config", "news"
+            ],
+            "presentation": {     
+                "group": "news",
+            }
+        },
+        {
+            "name": "VQA Merge train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--warmup_rate","0",
+                "--batch_size","6",
+                "--model_config", "llama-7b",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                "--project","'VQA Merge'",
+                "--run_name","lightning_llama-7b_3type_peftsave"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "VQA Merge LLaMA",
+                "order": 1
+            }
+        },
+        {
+            "name": "VQA Merge train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--warmup_rate","0",
+                "--batch_size","6",
+                "--model_config", "gpt2",
+                "--data_config", "vqa_merge",
+                "--num_beams","1"
+            ]
+        },
+        {
+            "name": "VQA Merge test(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","test",
+                "--batch_size","16",
+                "--model_config", "llama-7b",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--resume_ckpt", "base_val_loss=2.458_epoch=4.ckpt"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "VQA Merge LLaMA",
+                "order": 1
+            }
+        },
+        {
+            "name": "VQA Merge predict(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","predict",
+                "--batch_size","8",
+                "--model_config", "llama-7b",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                "--predict_ckpt_name", "base_f1=50.865_epoch=6.ckpt"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "VQA Merge LLaMA",
+                "order": 1
+            }
+        },
+        {
+            "name": "STaR4VQA train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","train",
+                "--max_epochs", "20",
+                "--batch_size","16",
+                "--model_config", "gpt2",
+                "--data_config", "instruction",
+                "--num_beams","1",
+                "--ckpt_save_path","/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0/out",
+                "--D.datamodule.args.data_dir=/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0",
+                "--D.datamodule.args.train_name=instruction.json"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "STaR4VQA LLaMA",
+                "order": 1
+            }
+        },
+        {
+            "name": "STaR4VQA predict(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","predict",
+                "--batch_size","16",
+                "--model_config", "gpt2",
+                "--data_config", "instruction",
+                "--num_beams","1",
+                "--ckpt_save_path","/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0/out",
+                "--predict_ckpt_name","best.ckpt",
+                "--predict_output_dir","/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0",
+                "--predict_output_name","generated_vq.json",
+                "--D.datamodule.args.data_dir=/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0",
+                "--D.datamodule.args.train_name=instruction.json",
+                "--D.datamodule.args.predict_name=../predict.json",
+                "--D.datamodule.args.predict_output_key=vq"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "STaR4VQA gpt2",
+                "order": 1
+            }
+        },
+        {
+            "name": "OK-VQA train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--model_config", "gpt2",
+                "--data_config", "okvqa",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/okvqa",
+                "--project", "OKVQA",
+                "--run_name","general_caption (gpt2)"
+            ]
+        },
+        {
+            "name": "OK-VQA train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","train",
+                "--batch_size","8",
+                "--model_config", "llama-7b",
+                "--data_config", "okvqa",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/okvqa",
+                "--project", "OKVQA",
+                "--run_name","general_caption (llama)"
+            ]
+        },
+        {
+            "name": "OK-VQA predict(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","predict",
+                "--batch_size","8",
+                "--model_config", "llama-7b",
+                "--data_config", "okvqa",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/okvqa",
+                "--project", "OKVQA",
+                "--run_name","general_caption (llama)"
+            ]
+        },
+        {
+            "name": "IMDB Positive train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","train",
+                "--batch_size","256",
+                "--model_config", "gpt2",
+                "--data_config", "imdb_positive",
+                "--ckpt_save_path", "weights/imdb",
+                "--project", "IMDB-RL",
+                "--run_name","positive_w_batch_gpt2",
+                "--M.pretrain.path=/pretrains/huggingface/lvwerra/gpt2-imdb"
+            ]
+        },
+        {
+            "name": "IMDB Positive test(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","test",
+                "--batch_size","256",
+                "--model_config", "gpt2",
+                "--data_config", "imdb_positive",
+                "--ckpt_save_path", "weights/imdb",
+                "--resume_ckpt", "base_val_reward=2.799_epoch=5.ckpt",
+                "--M.pretrain.path=/pretrains/huggingface/lvwerra/gpt2-imdb"
+            ]
+        },
+        {
+            "name": "IMDB LM train(gpt2)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "args": [
+                "--stage","train",
+                "--batch_size","6",
+                "--model_config", "gpt2",
+                "--data_config", "imdb_lm",
+                "--ckpt_save_path", "weights/imdb",
+                // "--project", "IMDB RL",
+                "--run_name","positive (gpt2)",
+                "--M.pretrain.path=/pretrains/huggingface/lvwerra/gpt2-imdb",
+                "--D.datamodule.args.max_length=512"
+            ]
+        }
+    ]
+}

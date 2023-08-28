@@ -1,0 +1,8 @@
+datamodule:
+  class_name: news.NewsDM
+  args:
+    data_dir: /home/yadong/workspace/llama/hf_train/data/news
+
+metrics:
+  name: f1
+  eval_calculate: true
