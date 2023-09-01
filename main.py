@@ -28,14 +28,14 @@ def parse_args():
 
     # 设置参数
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict"], help="the stage of learning process")
+    parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict","data", "check"], help="the stage of learning process")
     parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training and test (default: 8)")
     parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--data_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--accumulate_grads", type=int, default=4, help="accumulate Grads for train steps (default: 4)")
-    parser.add_argument("--warmup_rate", type=float, default=0.1, help="warmup rate (default: 0.1)")
+    parser.add_argument("--warmup_rate", type=float, default=0, help="warmup rate (default: 0)")
     parser.add_argument("--num_beams", type=int, default=1, help="number of beam search in eval step (default: 1)")
 
     parser.add_argument("--train_num", type=int, default=-1,help="train data number")
@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument("--ckpt_name_prefix",  type=str, default="base", help="ckpt save name")
     parser.add_argument("--ckpt_save_path", type=str, default="{}/weights".format(WORKING_DIR), help="ckpt_save_path")
     parser.add_argument("--resume_ckpt", type=str, default=None, help="checkpoint file name for resume")
+    parser.add_argument("--save_full_model", action='store_true', help="store full model")
 
     parser.add_argument("--predict_ckpt_name",  type=str, default=None, help="ckpt name for test")
     parser.add_argument("--predict_output_dir",  type=str, default="output", help="prediction output name")
@@ -115,13 +116,15 @@ def main(args):
             callbacks=[ckpt_callback, early_stopping, lr_logger, best_ckpt_callback],
             devices=1,
             log_every_n_steps=10,
+            strategy="ddp",
             accumulate_grad_batches=args.accumulate_grads
         )
 
         # 开始训练模型
         trainer.fit(model, ckpt_path=resume_checkpoint, datamodule=data_module)
 
-        ckpt_callback.best_model_path
+        if args.save_full_model:
+            model.model.save_pretrained(ckpt_callback.best_model_path+".full")
 
     elif args.stage=="test":
         print("start test model ...")
@@ -148,6 +151,20 @@ def main(args):
 
         # 开始预测结果
         trainer.predict(model, ckpt_path=predict_checkpoint, datamodule=data_module)
+    
+    elif args.stage=="data": # 检查数据分词后的长度，方便去设置 datamoduel max_length
+        from tqdm import tqdm
+        data_module.setup("fit")
+        length = []
+        for batch in tqdm(data_module.train_dataloader()):
+            length.append(batch["input_ids"].shape[1])
+
+        import matplotlib.pyplot as plt
+        plt.hist(length, bins=100)
+        plt.title('Histogram')
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
+        plt.savefig("output/input_length.svg")
 
 if __name__ == '__main__':
     args = parse_args()

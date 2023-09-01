@@ -10,6 +10,8 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from trl import AutoModelForCausalLMWithValueHead
 
+from .mixins import PeftModuleMixin
+
 def load_model(config): 
     tokenizer = AutoTokenizer.from_pretrained(config.pretrain.path, trust_remote_code=True)
     tokenizer.padding_side="left"
@@ -32,11 +34,17 @@ def load_model(config):
             use_auth_token=True
         )
     else:
-        model = AutoModelForCausalLM.from_pretrained(
-            config.pretrain.path,
-            trust_remote_code=True,
-            use_auth_token=True
-        )
+        if "precision" in config:
+            model = AutoModelForCausalLM.from_pretrained(
+                config.pretrain.path,
+                trust_remote_code=True,
+                torch_dtype=eval(config.precision.dtype)
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                config.pretrain.path,
+                trust_remote_code=True
+            )
     
     if "config" in config:
         for k in config.config:
@@ -55,8 +63,12 @@ def load_reinforcement_model(config):
     gpt2_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.pretrain.path)
     gpt2_model_ref = AutoModelForCausalLMWithValueHead.from_pretrained(config.pretrain.path)
 
-    gpt2_tokenizer = AutoTokenizer.from_pretrained(config.pretrain.path)
-    gpt2_tokenizer.padding_side="left"
+    tokenizer_path = config.pretrain.path
+    if "tokenizer_path" in config.pretrain:
+        tokenizer_path = config.pretrain.tokenizer_path
+
+    gpt2_tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+    # gpt2_tokenizer.padding_side="left"
     gpt2_tokenizer.pad_token = gpt2_tokenizer.eos_token
 
     return gpt2_model, gpt2_model_ref, gpt2_tokenizer

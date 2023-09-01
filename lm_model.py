@@ -1,14 +1,13 @@
 # coding=utf-8
 import os
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from transformers import get_linear_schedule_with_warmup 
-from models import load_model
+from models import load_model, PeftModuleMixin
 
-
-class CausalLMModel(pl.LightningModule):
+class CausalLMModel(PeftModuleMixin, pl.LightningModule):
     def __init__(self, config):
         # 1. Init parameters
         super(CausalLMModel, self).__init__()
@@ -42,6 +41,10 @@ class CausalLMModel(pl.LightningModule):
     def calculate_metric(self):
         return bool(self.config.data_config.get("metrics") and 
            self.config.data_config["metrics"]["eval_calculate"])
+    
+    @property
+    def is_peft_mode(self):
+        return "peft" in self.config.model_config
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         outputs = self.model(
