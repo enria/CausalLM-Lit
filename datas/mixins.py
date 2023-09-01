@@ -1,9 +1,20 @@
-from sklearn.metrics import classification_report, precision_recall_fscore_support
+from sklearn.metrics import (classification_report,
+                             precision_recall_fscore_support,
+                             accuracy_score)
 
 class MetricDataMixin():
 
     def calculate_metrics(self, output):
         raise NotImplemented
+
+class AccuracyDataMixin():
+
+    def calculate_metrics(self, output):
+        gold, pred = zip(*output)
+        metrics = {
+            "acc":accuracy_score(gold,pred)*100,
+        }
+        return metrics
     
 class ClassificationDataMixin(MetricDataMixin):
 

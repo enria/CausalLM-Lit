@@ -20,14 +20,8 @@ class LengthSampler:
         return np.random.choice(self.values)
 
 class IMDbLMDM(SequenceDM):
-    def __init__(self, data_dir = "imdb",  batch_size: int = 32, val_batch_size: int = -1,
-                 tokenizer = None,  max_new_tokens = 35, max_length = 1024):
-        pl.LightningDataModule.__init__(self)
-        self.batch_size = batch_size
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.max_new_tokens = max_new_tokens
-
+    def __init__(self, data_dir = "imdb", val_batch_size: int = -1, **args):
+        super().__init__(**args)
         self.data_dir = data_dir
 
         self.input_size = LengthSampler(4, 8)
@@ -36,7 +30,7 @@ class IMDbLMDM(SequenceDM):
         if val_batch_size>0:
             self.val_batch_size = val_batch_size
         else:
-            self.val_batch_size = batch_size
+            self.val_batch_size = self.batch_size
 
     def convert(self, item):
         sample =  {

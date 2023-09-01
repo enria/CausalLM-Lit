@@ -5,19 +5,14 @@ from random import Random
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
-from .seq_data import SequenceDataset, SequenceDDM
+from .seq_data import SequenceDataset, SequenceDM
 from .mixins import ClassificationDataMixin
 
-class NewsDM(SequenceDDM, ClassificationDataMixin):
-    def __init__(self, tokenizer = None, batch_size: int = 32, max_new_tokens = 10, data_dir = ""):
-        pl.LightningDataModule.__init__(self)
-        self.batch_size = batch_size
-        self.tokenizer = tokenizer
-        self.max_new_tokens = max_new_tokens
+class NewsDM(SequenceDM, ClassificationDataMixin):
+    def __init__(self, **args):
+        super().__init__(**args)
 
-        self.data_dir = data_dir
-
-        with open(os.path.join(data_dir, "News_Category.json")) as fin:
+        with open(os.path.join(self.data_dir, "News_Category.json")) as fin:
             category = json.load(fin)
             self.set_category(category)
     

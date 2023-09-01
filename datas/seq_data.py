@@ -1,13 +1,18 @@
+from os import path
+import json
+from random import Random
+
 import torch
 from torch.utils.data import Dataset
 
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
+
 from .mixins import PredictionSaveMixin
 
 class SequenceDataset(Dataset):
-    def __init__(self, datas, tokenizer, max_length=1024, ignore_input_loss=True, ignore_label_id=-100, mode="train") -> None:
+    def __init__(self, datas, tokenizer, max_length=1024, ignore_input_loss=True, ignore_label_id=-100, mode="train", input_truncation_side="left") -> None:
         super().__init__()
         self.datas = datas
         self.tokenizer = tokenizer
@@ -16,6 +21,7 @@ class SequenceDataset(Dataset):
         self.mode = mode
 
         self.ignore_input_loss = ignore_input_loss
+        self.input_truncation_side = input_truncation_side
         # self.datareader = DataReader()
         # self.samples, self.features = self.load_data()
 
@@ -31,7 +37,14 @@ class SequenceDataset(Dataset):
         #     a_ids = a_ids[: self.max_length - 1]
         
         if len(q_ids) + len(a_ids)+1>self.max_length: # truncation=left
-            q_ids = q_ids[self.max_length-1-len(q_ids):]
+            if len(a_ids)+1>self.max_length:
+                q_ids = []
+                a_ids = a_ids[-(self.max_length-1):]
+            else:
+                if self.input_truncation_side=="left":
+                    q_ids = q_ids[-(self.max_length-1-len(a_ids)):]
+                else:
+                    q_ids = q_ids[:(self.max_length-1-len(a_ids))]
         
         question_length = len(q_ids)  # chatglm1 - gmask, bos, chatglm2 - gmask, sop
 
@@ -45,7 +58,7 @@ class SequenceDataset(Dataset):
             labels =    q_ids + a_ids + [self.tokenizer.eos_token_id]
         
         return {'input_ids': input_ids, 'labels': labels}
-
+    
     def __len__(self):
         return len(self.datas)
 
@@ -56,7 +69,7 @@ class SequenceDataset(Dataset):
 
     def collate_fn(self, batch_data):
         """根据batch最大长度做padding"""
-        st_max_length = self.max_length*2
+        st_max_length = self.max_length
         pad_token_id = self.tokenizer.pad_token_id
 
         len_list = [len(d['input_ids']) for d in batch_data]
@@ -93,18 +106,82 @@ class SequenceDataset(Dataset):
 
 
 class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
+    def __init__(self, data_dir: str = "", batch_size: int = 32, val_batch_size: int = -1, 
+                 tokenizer = None, max_length=1024, max_new_tokens = 10, input_truncation_side="right",
+                 train_name="train.json", val_name="val.json", test_name="test.json", 
+                 predict_name="predict.json", predict_output_key="output"):
+        pl.LightningDataModule.__init__(self)
+
+        self.data_dir = data_dir
+
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.max_new_tokens = max_new_tokens
+        self.input_truncation_side = input_truncation_side
+
+        self.train_name = train_name
+        self.val_name = val_name
+        self.test_name = test_name
+        self.predict_name = predict_name
+        self.predict_output_key = predict_output_key
+
+        self.batch_size = batch_size
+        self.val_batch_size = val_batch_size if val_batch_size>0 else batch_size
     
+
+    def setup(self, stage: str):
+        if stage in [pl.trainer.states.TrainerFn.FITTING]:
+            train_path = path.join(self.data_dir, self.train_name)
+            if path.exists(train_path):
+                train_data = json.load(open(train_path))
+                val_path = path.join(self.data_dir, self.val_name)
+                if path.exists(val_path):
+                    val_data = json.load(open(val_path))
+                else:
+                    shuffle = Random(42).shuffle
+                    shuffle(train_data)
+                    pivot = int(len(train_data)*0.9)
+                    train_data, val_data = train_data[:pivot], train_data[pivot:]
+            else:
+                raise FileNotFoundError
+
+            train_data = [self.convert(x) for x in train_data]
+            val_data= [self.convert(x) for x in val_data]
+
+            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side = self.input_truncation_side)
+            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="val", input_truncation_side = self.input_truncation_side)
+            print("train_length:", len(self.train_data))
+            print("valid_length:", len(self.val_data))
+            self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+
+        elif stage==pl.trainer.states.TrainerFn.PREDICTING:
+            with open(path.join(self.data_dir, self.predict_name)) as fin:
+                predict_data = json.load(fin)
+                predict_data = [self.convert(x) for x in predict_data]
+            for item in predict_data:
+                item["output"] = "need prediction"
+            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            print("precition_length:", len(self.predict_data))
+
     def train_dataloader(self):
         if hasattr(self,"train_dl"):
             return self.train_dl
         return DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
 
     def val_dataloader(self):
-        return DataLoader(self.val_data, batch_size=self.batch_size, collate_fn=self.val_data.collate_fn)
+        return DataLoader(self.val_data, batch_size=self.val_batch_size, collate_fn=self.val_data.collate_fn)
     
     def test_dataloader(self):
-        return DataLoader(self.test_data, batch_size=self.batch_size, collate_fn=self.test_data.collate_fn)
+        return DataLoader(self.test_data, batch_size=self.val_batch_size, collate_fn=self.test_data.collate_fn)
 
     def predict_dataloader(self):
-        return DataLoader(self.predict_data, batch_size=self.batch_size, collate_fn=self.predict_data.collate_fn)
+        return DataLoader(self.predict_data, batch_size=self.val_batch_size, collate_fn=self.predict_data.collate_fn)
     
+    def save_prediction(self, output, output_path):
+        results = []
+        for origin, pred in output:
+            item = dict(**origin)
+            item[self.predict_output_key] = pred
+            results.append(item)
+        with open(output_path, "w") as fout:
+            json.dump(results, fout, indent=4, ensure_ascii=False)

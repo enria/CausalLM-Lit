@@ -12,14 +12,8 @@ from .seq_data import SequenceDataset, SequenceDM
 from .mixins import ClassificationDataMixin, MetricDataMixin
 
 class VQAMergeDM(SequenceDM, ClassificationDataMixin):
-    def __init__(self, tokenizer = None, batch_size: int = 32, max_new_tokens = 10, data_dir = ""):
-        pl.LightningDataModule.__init__(self)
-        self.batch_size = batch_size
-        self.tokenizer = tokenizer
-        self.max_new_tokens = max_new_tokens
-
-        self.data_dir = data_dir
-
+    def __init__(self, **args):
+        super().__init__(**args)
         self.set_category(["visual", "reasoning", "both", "none"])
     
     def generate_prompt(self,context):
@@ -37,16 +31,21 @@ class VQAMergeDM(SequenceDM, ClassificationDataMixin):
         }
 
     def setup(self, stage: str):
-        if stage in [pl.trainer.states.TrainerFn.FITTING, pl.trainer.states.TrainerFn.TESTING]:
+        if stage == pl.trainer.states.TrainerFn.FITTING:
             train_data = torch.load(os.path.join(self.data_dir, "train.pt"))
             val_data = torch.load(os.path.join(self.data_dir, "test.pt"))
             train_data = [self.convert(i) for i in train_data if i["output"]!="none"]
             val_data = [self.convert(i) for i in val_data if i["output"]!="none"]
-            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=512)
-            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=512, mode="eval")
+            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side=self.input_truncation_side)
+            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="eval", input_truncation_side=self.input_truncation_side)
             print("train_length:", len(self.train_data))
             print("valid_length:", len(self.val_data))
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+        elif stage ==  pl.trainer.states.TrainerFn.TESTING:
+            val_data = torch.load(os.path.join(self.data_dir, "test.pt"))
+            val_data = [self.convert(i) for i in val_data if i["output"]!="none"]
+            self.test_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="eval", input_truncation_side=self.input_truncation_side)
+            print("test_length:", len(self.test_data))
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             with open(os.path.join(self.data_dir, "prediction.json")) as fin:
@@ -70,7 +69,7 @@ class VQAMergeDM(SequenceDM, ClassificationDataMixin):
 
 
 class OKVQADM(SequenceDM, MetricDataMixin):
-    def __init__(self, tokenizer = None, batch_size: int = 32, max_new_tokens = 10, data_dir = ""):
+    def __init__(self, data_dir = "", tokenizer = None, batch_size: int = 32,max_length=1024, max_new_tokens = 10):
         pl.LightningDataModule.__init__(self)
         self.batch_size = batch_size
         self.tokenizer = tokenizer
@@ -132,15 +131,15 @@ class OKVQADM(SequenceDM, MetricDataMixin):
             pivot = int(len(train_data)*0.9)
             train_data, val_data = train_data[:pivot], train_data[pivot:]
 
-            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=512)
-            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=512, mode="eval")
+            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=442, input_truncation_side="right")
+            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=442, mode="eval", input_truncation_side="right")
             print("train_length:", len(self.train_data))
             print("valid_length:", len(self.val_data))
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             predict_data = self.load_samples(keep_origin=True)
-            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=512, mode="predict")
+            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=442, mode="predict")
             print("precition_length:", len(self.predict_data))
 
     def calculate_metrics(self, output):
@@ -154,11 +153,3 @@ class OKVQADM(SequenceDM, MetricDataMixin):
             accs.append(min(1.,float(counter)*0.3))
         return {"vqa_acc": np.mean(accs)*100}
     
-    def save_prediction(self, output, output_name):
-        results = []
-        for origin, pred in output:
-            item = dict(**origin)
-            item["question type"] = pred
-            results.append(item)
-        with open(output_name, "w") as fout:
-            json.dump(results, fout, indent=4, ensure_ascii=False)

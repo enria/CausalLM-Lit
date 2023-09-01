@@ -13,7 +13,7 @@ class PositiveSentimentRewardModule():
     
     def __call__(self, output):
         texts = []
-        for prompt, pred in output:
+        for prompt, pred, _ in output:
             pred = pred.strip()
             texts.append(prompt + " " + pred)
         pipe_outputs = self.pipeline(texts, **self.sent_kwargs)

@@ -7,17 +7,10 @@ import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 
-from .seq_data import SequenceDM
+from .seq_data import SequenceDM, SequenceDataset
 
 
-class RLDataset(Dataset):
-    def __init__(self, datas, tokenizer, max_length=1024, ignore_label_id=-100, mode="train") -> None:
-        super().__init__()
-        self.datas = datas
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.ignore_label_id = ignore_label_id
-        self.mode = mode
+class RLDataset(SequenceDataset):
 
     def tokenize_func(self, example):
         """单样本tokenize处理"""
@@ -25,20 +18,15 @@ class RLDataset(Dataset):
         q_ids = self.tokenizer.encode(text=query, add_special_tokens=False)
         
         if len(q_ids)>self.max_length: # truncation=left
-            q_ids = q_ids[self.max_length-1:]
+            if self.input_truncation_side=="left":
+                q_ids = q_ids[-self.max_length:]
+            else:
+                q_ids = q_ids[:self.max_length]
         
         #TODO should be flexiable to most language model
         input_ids = q_ids
         
         return {'input_ids': input_ids}
-
-    def __len__(self):
-        return len(self.datas)
-
-    def __getitem__(self, index):
-        item = self.tokenize_func(self.datas[index])
-        item = dict(**item, **self.datas[index])
-        return item
 
     def collate_fn(self, batch_data):
         """根据batch最大长度做padding"""
@@ -55,7 +43,7 @@ class RLDataset(Dataset):
                 ids = ids[: st_max_length]
             input_ids.append(torch.LongTensor(ids))
             input_texts.append(d['input'])
-            if self.mode!="train" and "origin" in d:
+            if "origin" in d:
                 origins.append(d["origin"])
         input_ids = torch.stack(input_ids)
         data_dict = {
@@ -67,18 +55,37 @@ class RLDataset(Dataset):
         return data_dict
 
 class RLDM(SequenceDM):
-    
-    def train_dataloader(self):
-        if hasattr(self,"train_dl"):
-            return self.train_dl
-        return DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+    def setup(self, stage: str):
+        if stage in [pl.trainer.states.TrainerFn.FITTING]:
+            train_path = path.join(self.data_dir, self.train_name)
+            if path.exists(train_path):
+                train_data = json.load(open(train_path))
+                val_path = path.join(self.data_dir, self.val_name)
+                if path.exists(val_path):
+                    val_data = json.load(open(val_path))
+                else:
+                    shuffle = Random(42).shuffle
+                    shuffle(train_data)
+                    pivot = int(len(train_data)*0.9)
+                    train_data, val_data = train_data[:pivot], train_data[pivot:]
+            else:
+                raise FileNotFoundError
 
-    def val_dataloader(self):
-        return DataLoader(self.val_data, batch_size=self.val_batch_size, collate_fn=self.val_data.collate_fn)
-    
-    def test_dataloader(self):
-        return DataLoader(self.test_data, batch_size=self.val_batch_size, collate_fn=self.test_data.collate_fn)
+            train_data = [self.convert(x) for x in train_data]
+            val_data= [self.convert(x) for x in val_data]
 
-    def predict_dataloader(self):
-        return DataLoader(self.predict_data, batch_size=self.val_batch_size, collate_fn=self.predict_data.collate_fn)
+            self.train_data = RLDataset(datas = train_data, tokenizer = self.tokenizer, max_length=self.max_length, input_truncation_side = self.input_truncation_side)
+            self.val_data = RLDataset(val_data, self.tokenizer, max_length=self.max_length, mode="val", input_truncation_side = self.input_truncation_side)
+            print("train_length:", len(self.train_data))
+            print("valid_length:", len(self.val_data))
+            self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+
+        elif stage==pl.trainer.states.TrainerFn.PREDICTING:
+            with open(path.join(self.data_dir, self.predict_name)) as fin:
+                predict_data = json.load(fin)
+                predict_data = [self.convert(x) for x in predict_data]
+            for item in predict_data:
+                item["output"] = "need prediction"
+            self.predict_data = RLDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            print("precition_length:", len(self.predict_data))
 
