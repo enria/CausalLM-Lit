@@ -459,8 +459,7 @@
             "program": "rl_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"7",
-                    "OPENAI_API_KEY":"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"},
+            "env": {"CUDA_VISIBLE_DEVICES":"7"},
             "args": [
                 "--stage","train",
                 "--batch_size","16",
