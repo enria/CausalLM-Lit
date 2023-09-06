@@ -1,0 +1,15 @@
+datamodule:
+  class_name: vqg.ConfidentVQGDM
+  args:
+    train_name: generated_vq.json
+    val_batch_size: 256
+    data_dir: /home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0
+    max_length: 256
+    max_new_tokens: 56
+
+reward:
+  class_name: vqg.VQAConfidenceRewardModule
+  args:
+    api_url: http://localhost:9401
+    reward_batch_size: 16
+  origin: true

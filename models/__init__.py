@@ -7,7 +7,7 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig
 )
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
 from trl import AutoModelForCausalLMWithValueHead
 
 from .mixins import PeftModuleMixin
@@ -60,59 +60,48 @@ def load_model(config):
     return model, tokenizer
 
 def load_reinforcement_model(config):
-    gpt2_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.pretrain.path)
-    gpt2_model_ref = AutoModelForCausalLMWithValueHead.from_pretrained(config.pretrain.path)
 
     tokenizer_path = config.pretrain.path
     if "tokenizer_path" in config.pretrain:
         tokenizer_path = config.pretrain.tokenizer_path
-
-    gpt2_tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-    # gpt2_tokenizer.padding_side="left"
-    gpt2_tokenizer.pad_token = gpt2_tokenizer.eos_token
-
-    return gpt2_model, gpt2_model_ref, gpt2_tokenizer
-
-
-    tokenizer = AutoTokenizer.from_pretrained(config.pretrain.path, trust_remote_code=True)
-    tokenizer.padding_side="left"
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
     if "tokenizer" in config:
         if "pad_token" in config.tokenizer:
             tokenizer.pad_token = config.tokenizer.pad_token
     if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.unk_token
-    tokenizer.truncation_side='left'
+        tokenizer.pad_token = tokenizer.eos_token
 
+    bnb_config = None
     if "quant" in config:
         bnb_config = BitsAndBytesConfig(
             bnb_4bit_compute_dtype=torch.float16,
-            **config.quant
-        )
-        model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            config.pretrain.path,
-            quantization_config=bnb_config,
-            trust_remote_code=True,
-            use_auth_token=True
-        )
-    else:
-        model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            config.pretrain.path,
-            trust_remote_code=True,
-            use_auth_token=True
-        )
-    
-    if "config" in config:
-        for k in config.config:
-            setattr(model.config, k, config.config[k])
-    
+            **config.quant )
+        
+    peft_config = None
     if "peft" in config:
         peft_config = LoraConfig(
             **config.peft,
-            task_type="CAUSAL_LM",
-        )
-        model = get_peft_model(model, peft_config)
+            task_type="CAUSAL_LM")
+        
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        config.pretrain.path,
+        quantization_config=bnb_config,
+        trust_remote_code=True,
+        is_trainable=True
+    )
+    model_ref = AutoModelForCausalLMWithValueHead.from_pretrained(
+        config.pretrain.path,
+        peft_config=peft_config,
+        quantization_config=bnb_config,
+        trust_remote_code=True
+    )
+    
+    if "config" in config:
+        for k in config.config:
+            setattr(model.pretrained_model.config, k, config.config[k])
+            setattr(model_ref.pretrained_model.config, k, config.config[k])
 
-    return model, deepcopy(model), tokenizer
+    return model, model_ref, tokenizer
 
 
 def load_reward_model(config):

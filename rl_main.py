@@ -28,8 +28,9 @@ def parse_args():
 
     # 设置参数
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict"], help="the stage of learning process")
+    parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict","check"], help="the stage of learning process")
     parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training and test (default: 8)")
+    parser.add_argument("--mini_batch_size", type=int, default=16, help="batch size for ppo optimization (default: 8)")
     parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
@@ -44,7 +45,6 @@ def parse_args():
     parser.add_argument("--ckpt_save_path", type=str, default="{}/weights".format(WORKING_DIR), help="ckpt_save_path")
     parser.add_argument("--resume_ckpt", type=str, default=None, help="checkpoint file name for resume")
 
-    parser.add_argument("--predict_ckpt_name",  type=str, default=None, help="ckpt name for test")
     parser.add_argument("--predict_output_dir",  type=str, default="output", help="prediction output name")
     parser.add_argument("--predict_output_name",  type=str, default=None, help="prediction output name")
 
@@ -137,15 +137,18 @@ def main(args):
     elif args.stage=="predict":
         print("start test model ...")
         if not args.predict_output_name:
-            args.predict_output_name = args.predict_ckpt_name.rsplit(".",1)[0]+".json"
+            args.predict_output_name = args.resume_ckpt.rsplit(".",1)[0]+".json"
 
-        predict_checkpoint=os.path.join(args.ckpt_save_path ,args.predict_ckpt_name)   # 加载已保存的模型继续训练
+        resume_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
 
         # 设置训练器
         trainer = pl.Trainer(devices=1)
 
         # 开始预测结果
-        trainer.predict(model,ckpt_path=predict_checkpoint, datamodule=data_module)
+        trainer.predict(model,ckpt_path=resume_checkpoint, datamodule=data_module)
+    
+    elif args.stage=="check":
+        pass
 
 if __name__ == '__main__':
     args = parse_args()

@@ -1,0 +1,7 @@
+datamodule:
+  class_name: vqg.VQGDM
+  args:
+    train_name: train.json
+    data_dir: /home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0
+    max_length: 256
+    max_new_tokens: 56

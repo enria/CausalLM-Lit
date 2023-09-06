@@ -1,0 +1,9 @@
+datamodule:
+  class_name: instruction.AccuracyDM
+  args:
+    data_dir: /home/yadong/workspace/llama/lit-llama/data/refcoco
+    input_truncation_side: right
+
+metrics:
+  name: acc
+  eval_calculate: true

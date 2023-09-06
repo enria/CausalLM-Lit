@@ -1,0 +1,23 @@
+datamodule:
+  class_name: vqg.HelpfulVQGDM
+  args:
+    train_name: train.json
+    val_batch_size: 16
+    data_dir: data_dir/okvqa
+    max_length: 256
+    max_new_tokens: 56
+
+metrics:
+  eval_calculate: true
+  name: vqa_acc
+
+ppo:
+  generate_batch_size: 8
+
+reward:
+  class_name: vqg.VisualHintHelpfulRewardModule
+  args:
+    api_url: http://localhost:9401
+    vqa_batch_size: 16
+    llm_batch_size: 16
+  origin: true

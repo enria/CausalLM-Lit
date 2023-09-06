@@ -2,6 +2,8 @@ datamodule:
   class_name: vqa.VQAMergeDM
   args:
     data_dir: /home/yadong/workspace/llama/hf_train/data/vqa_merge
+    max_length: 200
+    input_truncation_side: right
 
 metrics:
   name: f1

@@ -1,0 +1,20 @@
+pretrain:
+  path: /vault/pretrains/huggingface/huggyllama/llama-7b
+  tokenizer_path: /vault/pretrains/huggingface/huggyllama/llama-7b
+
+config:
+  use_cache: false
+  pretraining_tp: 1 
+
+quant:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+
+peft:
+  lora_alpha: 32
+  lora_dropout: 0.05
+  r: 16
+  bias: none
+
+optim:
+  lr: 1.41e-5

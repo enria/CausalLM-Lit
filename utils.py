@@ -12,6 +12,13 @@ def set_random_seed(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
+def chain_get(data, keys, default):
+    if len(keys)==0: return default
+    if len(keys)==1: return data.get(keys[0], default)
+    if keys[0] not in data: return default
+    return chain_get(data[keys[0]], keys[1:], default)
+
+
 class Timer:
     def __init__(self, record=None, key=None):
         self._start_time = None

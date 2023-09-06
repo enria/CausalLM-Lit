@@ -79,6 +79,13 @@ class RLDM(SequenceDM):
             print("train_length:", len(self.train_data))
             print("valid_length:", len(self.val_data))
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+        
+        elif stage==pl.trainer.states.TrainerFn.TESTING:
+            with open(path.join(self.data_dir, self.test_name)) as fin:
+                test_data = json.load(fin)
+                test_data = [self.convert(x) for x in test_data]
+            self.test_data = RLDataset(test_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            print("test_length:", len(self.test_data))
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             with open(path.join(self.data_dir, self.predict_name)) as fin:

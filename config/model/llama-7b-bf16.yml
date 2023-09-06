@@ -5,9 +5,8 @@ config:
   use_cache: false
   pretraining_tp: 1 
 
-quant:
-  load_in_4bit:  
-  bnb_4bit_quant_type: "nf4"
+precision:
+  dtype: torch.bfloat16
 
 peft:
   lora_alpha: 16
