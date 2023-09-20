@@ -29,12 +29,14 @@ def parse_args():
     # 设置参数
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict","check"], help="the stage of learning process")
-    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training and test (default: 8)")
+    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training  (default: 8)")
+    parser.add_argument("--val_batch_size", type=int, default=-1, help="input batch size for validation and test (default: 8)")
     parser.add_argument("--mini_batch_size", type=int, default=16, help="batch size for ppo optimization (default: 8)")
     parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--data_config_name", type=str, required=True, help="model config file name")
+    parser.add_argument("--accumulate_grads", type=int, default=4, help="accumulate Grads for train steps (default: 4)")
     parser.add_argument("--warmup_rate", type=float, default=0.1, help="warmup rate (default: 0.1)")
     parser.add_argument("--num_beams", type=int, default=1, help="number of beam search in eval step (default: 1)")
 
@@ -67,7 +69,7 @@ def parse_args():
 def main(args):
     model = ReinforcementLMModel(args)
     model.automatic_optimization = False
-    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size)
+    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size)
 
     if args.stage == "train":
         # ============= train 训练模型==============

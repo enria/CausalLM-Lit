@@ -10,7 +10,8 @@ import torch
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
 
 from models import load_reinforcement_model, load_reward_model
-from utils import Timer, chain_get
+from utils import Timer, chain_get, torch_gc
+import wandb
 
 
 class ReinforcementLMModel(pl.LightningModule):
@@ -24,11 +25,13 @@ class ReinforcementLMModel(pl.LightningModule):
         self.lr = config.model_config.optim.lr
 
         self.model, self.ref_model, self.tokenizer = load_reinforcement_model(config.model_config)
+        self.model.is_peft_model=False # TODO 
         self.reward_model = load_reward_model(config.data_config)
 
         ppo_config = PPOConfig(learning_rate=config.model_config.optim.lr,
                                batch_size=config.batch_size,
-                               mini_batch_size=config.mini_batch_size)
+                               mini_batch_size=config.mini_batch_size,
+                               gradient_accumulation_steps=config.accumulate_grads)
 
         self.ppo_trainer = PPOTrainer(config = ppo_config, 
                                       model=self.model, 
@@ -73,7 +76,7 @@ class ReinforcementLMModel(pl.LightningModule):
     def state_dict(self):
         prefix = "model"
         v_head_state_dict = self.model.v_head.state_dict()
-        if not self.model.is_peft_model:
+        if not self.is_peft_model:
             pretrained_model_state_dict = self.model.pretrained_model.state_dict(prefix=prefix+".pretrained_model.")
             for k, v in v_head_state_dict.items():
                 pretrained_model_state_dict[f"{prefix}.v_head.{k}"] = v
@@ -119,7 +122,9 @@ class ReinforcementLMModel(pl.LightningModule):
         with Timer(timing, "time/calcaulte_reward"):
             preds = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 
                     for output_ids in response_tensors]
-            rewards = self.reward_model(list(zip(batch['inputs'], preds, batch["origins"])))
+            rewards, envs = self.reward_model(list(zip(batch['inputs'], preds, batch["origins"])))
+        
+        # torch_gc()
 
         with Timer(timing, "time/optimization"):
             stats = self.reinforcement_optimization_step(query_tensors, response_tensors, rewards)
@@ -127,9 +132,13 @@ class ReinforcementLMModel(pl.LightningModule):
         logs={
             "env/reward_mean": np.mean(rewards), "env/reward_std": np.std(rewards), "env/reward_dist": rewards
         }
+        logs.update(envs)
         logs.update(timing)
         logs.update(stats)
         logs["trainer/global_step"] = self.trainer.global_step
+
+        table_rows = [list(r) for r in zip(batch["inputs"], preds, [r.item() for r in rewards])]
+        logs.update({"game_log": wandb.Table(columns=["query", "response", "reward"], rows=table_rows)})
         
         self.trainer.logger.experiment.log(logs)
     
@@ -140,17 +149,23 @@ class ReinforcementLMModel(pl.LightningModule):
         return stats
 
     def validation_step(self, batch, batch_idx):
+        padding_side_default = self.tokenizer.padding_side
+        self.tokenizer.padding_side = "left"
         inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.pretrained_model.device)
-        outputs = self.model.generate(input_ids=inputs['input_ids'], 
-                                    attention_mask=inputs['attention_mask'],
-                                    **self.gen_kwargs)
+        with Timer():
+            outputs = self.model.generate(input_ids=inputs['input_ids'], 
+                                        attention_mask=inputs['attention_mask'],
+                                        **self.gen_kwargs)
         preds = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 
                 for output_ids in outputs[:,inputs['input_ids'].shape[1]:]]
+        self.tokenizer.padding_side = padding_side_default
+
+        # torch_gc()
 
         if self.calculate_metric:
-            self.validation_step_outputs.extend([(x, p) for x, p in zip(batch["origins"], preds)])
+            self.validation_step_outputs.extend(list(zip(batch['inputs'], preds, batch["origins"])))
         else:
-            rewards = self.reward_model(list(zip(batch['inputs'], preds, batch["origins"])))
+            rewards, envs = self.reward_model(list(zip(batch['inputs'], preds, batch["origins"])))
             self.validation_step_outputs.extend(rewards)
         
     def on_validation_epoch_end(self):
@@ -171,14 +186,17 @@ class ReinforcementLMModel(pl.LightningModule):
         self.on_validation_epoch_end()
         
     def predict_step(self, batch, batch_idx):
+        padding_side_default = self.tokenizer.padding_side
+        self.tokenizer.padding_side = "left"
         inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.pretrained_model.device)
         outputs = self.model.generate(input_ids=inputs['input_ids'], 
                                     attention_mask=inputs['attention_mask'],
                                     **self.gen_kwargs)
         preds = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 
                 for output_ids in outputs[:,inputs['input_ids'].shape[1]:]]
+        self.tokenizer.padding_side = padding_side_default
                 
-        self.validation_step_outputs.extend([(x, p) for x, p in zip(batch["origins"], preds)])
+        self.validation_step_outputs.extend([(x, p) for x, p in zip(batch['inputs'], batch["origins"], preds)])
     
     def on_predict_epoch_end(self):
         from datas.seq_data import PredictionSaveMixin
