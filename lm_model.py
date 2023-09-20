@@ -30,6 +30,8 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
         import torch.optim as optim
         arg_list = [p for p in self.parameters() if p.requires_grad]
         optimizer = optim.AdamW(arg_list, lr=self.lr)
+        if self.config.disable_linear_schedule:
+            return optimizer
 
         total_steps = int(len(self.trainer.datamodule.train_dataloader()) // self.config.accumulate_grads ) * self.config.max_epochs # accumulate_grads
         warmup_step =  int(total_steps * self.config.warmup_rate)
@@ -68,7 +70,7 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
                                         attention_mask=inputs['attention_mask'], 
                                         num_beams=self.config.num_beams, 
                                         max_new_tokens=self.trainer.datamodule.max_new_tokens, 
-                                        use_cache=True,
+                                        # use_cache=True, # chatglm2 一定要使用cache
                                         return_dict_in_generate=True,
                                         output_hidden_states=True, 
                                         output_scores=True,
@@ -90,7 +92,7 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
         if self.calculate_metric:
             metrics = self.trainer.datamodule.calculate_metrics(self.validation_step_outputs)
             for key in metrics:
-                self.log(f"{key}", metrics[key])
+                self.log(f"{key}", metrics[key], sync_dist=True)
         else:
             loss = sum(self.validation_step_outputs)/len(self.validation_step_outputs)
             self.log("val_loss", loss)

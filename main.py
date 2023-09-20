@@ -9,8 +9,6 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 
 from omegaconf import OmegaConf
 
-from callbacks import RenameBestCheckpointCallback
-
 # 添加src目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))   
 sys.path.append(os.path.dirname(BASE_DIR))              # 将src目录添加到环境
@@ -29,13 +27,15 @@ def parse_args():
     # 设置参数
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict","data", "check"], help="the stage of learning process")
-    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training and test (default: 8)")
+    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training (default: 16)")
+    parser.add_argument("--val_batch_size", type=int, default=-1, help="input batch size for val and test (default: batch_size)")
     parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--data_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--accumulate_grads", type=int, default=4, help="accumulate Grads for train steps (default: 4)")
     parser.add_argument("--warmup_rate", type=float, default=0, help="warmup rate (default: 0)")
+    parser.add_argument("--disable_linear_schedule", action='store_true', help="not use liner schedule")
     parser.add_argument("--num_beams", type=int, default=1, help="number of beam search in eval step (default: 1)")
 
     parser.add_argument("--train_num", type=int, default=-1,help="train data number")
@@ -44,9 +44,9 @@ def parse_args():
     parser.add_argument("--ckpt_name_prefix",  type=str, default="base", help="ckpt save name")
     parser.add_argument("--ckpt_save_path", type=str, default="{}/weights".format(WORKING_DIR), help="ckpt_save_path")
     parser.add_argument("--resume_ckpt", type=str, default=None, help="checkpoint file name for resume")
+    parser.add_argument("--rename_best_ckpt", action='store_true', help="rename best ckpt (default to best.ckpt)")
     parser.add_argument("--save_full_model", action='store_true', help="store full model")
 
-    parser.add_argument("--predict_ckpt_name",  type=str, default=None, help="ckpt name for test")
     parser.add_argument("--predict_output_dir",  type=str, default="output", help="prediction output name")
     parser.add_argument("--predict_output_name",  type=str, default=None, help="prediction output name")
 
@@ -68,7 +68,7 @@ def parse_args():
 
 def main(args):
     model = CausalLMModel(args)
-    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size)
+    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size)
 
     if args.stage == "train":
         # ============= train 训练模型==============
@@ -81,11 +81,11 @@ def main(args):
                 dirpath = args.ckpt_save_path,                           # 模型保存路径
                 filename = args.ckpt_name_prefix + "_{%s:.3f}_{epoch}"%metric,  # 模型保存名称，参数ckpt_name后加入epoch信息以及验证集分数
                 monitor = metric,                                        # 根据验证集上的准确率评估模型优劣
-                mode = 'max',
+                mode = args.data_config.metrics.get("mode", "max"),
                 save_top_k = 3,                                          # 保存得分最高的前两个模型
                 verbose = True
             )
-            early_stopping=EarlyStopping(metric, mode="max",patience=4)
+            early_stopping=EarlyStopping(metric, mode="max",patience=3)
         else:
             ckpt_callback = ModelCheckpoint(
                 dirpath = args.ckpt_save_path,                           # 模型保存路径
@@ -97,23 +97,28 @@ def main(args):
             )
             early_stopping=EarlyStopping("val_loss", mode="min",patience=4)
         
+        lr_logger = LearningRateMonitor()
+        callbacks = [ckpt_callback, early_stopping, lr_logger]
+        
+        if args.rename_best_ckpt:
+            from callbacks import RenameBestCheckpointCallback
+            best_ckpt_callback = RenameBestCheckpointCallback(ckpt_callback)
+            callbacks.append(best_ckpt_callback)
+        
         resume_checkpoint=None
         if args.resume_ckpt:
             resume_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
-        
-        best_ckpt_callback = RenameBestCheckpointCallback(ckpt_callback)
 
-        lr_logger = LearningRateMonitor()
         run_name = args.run_name
         if run_name == "base":
             run_name = f"{args.data_config_name}({args.model_config_name})"
-        logger = WandbLogger(name=run_name, project=args.project, offline=args.project==None)
+        logger = WandbLogger(name=run_name, project=args.project, offline=args.project==None, config=args)
 
         # 设置训练器
         trainer = pl.Trainer(
             max_epochs=args.max_epochs,
+            callbacks=callbacks,
             logger = logger,
-            callbacks=[ckpt_callback, early_stopping, lr_logger, best_ckpt_callback],
             devices=1,
             log_every_n_steps=10,
             strategy="ddp",
@@ -142,9 +147,9 @@ def main(args):
     elif args.stage=="predict":
         print("start test model ...")
         if not args.predict_output_name:
-            args.predict_output_name = args.predict_ckpt_name.rsplit(".",1)[0]+".json"
+            args.predict_output_name = args.resume_ckpt.rsplit(".",1)[0]+".json"
 
-        predict_checkpoint=os.path.join(args.ckpt_save_path ,args.predict_ckpt_name)   # 加载已保存的模型继续训练
+        predict_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
 
         # 设置训练器
         trainer = pl.Trainer(devices=1)
