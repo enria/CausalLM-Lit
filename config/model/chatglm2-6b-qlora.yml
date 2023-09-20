@@ -1,0 +1,29 @@
+pretrain:
+  model_class: AutoModel
+  path: /pretrains/huggingface/THUDM/chatglm2-6b
+  tokenizer_path: /pretrains/huggingface/THUDM/chatglm2-6b
+  args:
+    trust_remote_code: true
+    use_auth_token: true
+
+tokenizer:
+  begin_special_token_num: 2
+
+config:
+  use_cache: true # chatglm2 must be true
+
+quant:
+  bf16: true
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+
+
+peft:
+  lora_alpha: 16
+  lora_dropout: 0.05
+  r: 8
+  bias: none
+  target_modules: ["query_key_value"]
+
+optim:
+  lr: 1e-4

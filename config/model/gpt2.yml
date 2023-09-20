@@ -4,6 +4,7 @@ pretrain:
 
 tokenizer:
   pad_token: <|endoftext|>
+  manual_add_eos_token: true
 
 optim:
   lr: 1.41e-5

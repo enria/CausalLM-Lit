@@ -1,7 +1,7 @@
 datamodule:
-  class_name: vqg.VQGDM
+  class_name: vqg.CaptionVQGDM
   args:
-    train_name: train.json
-    data_dir: /home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0
+    train_name: instruction.json
+    data_dir: data_dir/vqg
     max_length: 256
     max_new_tokens: 56

@@ -4,6 +4,7 @@ datamodule:
     data_dir: /home/yadong/workspace/llama/hf_train/data/vqa_merge
     max_length: 200
     input_truncation_side: right
+    predict_output_key: "question type"
 
 metrics:
   name: f1

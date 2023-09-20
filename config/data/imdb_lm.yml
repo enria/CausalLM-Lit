@@ -2,3 +2,4 @@ datamodule:
   class_name: imdb.IMDbLMDM
   args:
     data_dir: data_dir/imdb
+    max_length: 512

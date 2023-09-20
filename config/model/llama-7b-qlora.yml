@@ -1,20 +1,25 @@
 pretrain:
   path: /vault/pretrains/huggingface/huggyllama/llama-7b
   tokenizer_path: /vault/pretrains/huggingface/huggyllama/llama-7b
+  args:
+    trust_remote_code: true
+
+tokenizer:
+  manual_add_eos_token: true
 
 config:
   use_cache: false
-  pretraining_tp: 1 
 
 quant:
+  bf16: true
   load_in_4bit: true
   bnb_4bit_quant_type: "nf4"
 
-peft:
-  lora_alpha: 32
+peft: 
+  lora_alpha: 16
   lora_dropout: 0.05
-  r: 16
+  r: 8
   bias: none
 
 optim:
-  lr: 1.41e-5
+  lr: 1e-4

@@ -1,6 +1,7 @@
 from os import path
 import json
 from random import Random
+from copy import deepcopy
 
 import torch
 from torch.utils.data import Dataset
@@ -12,7 +13,7 @@ from torch.utils.data import DataLoader
 from .mixins import PredictionSaveMixin
 
 class SequenceDataset(Dataset):
-    def __init__(self, datas, tokenizer, max_length=1024, ignore_input_loss=True, ignore_label_id=-100, mode="train", input_truncation_side="left") -> None:
+    def __init__(self, datas, tokenizer, max_length=1024, ignore_input_loss=True, ignore_label_id=-100, mode="train", input_truncation_side="right") -> None:
         super().__init__()
         self.datas = datas
         self.tokenizer = tokenizer
@@ -22,6 +23,12 @@ class SequenceDataset(Dataset):
 
         self.ignore_input_loss = ignore_input_loss
         self.input_truncation_side = input_truncation_side
+
+        if hasattr(self.tokenizer, "get_prefix_tokens"):
+            self.prefix_token_num = len(self.tokenizer.get_prefix_tokens())
+        else:
+            self.prefix_token_num = 0
+        self.manual_add_eos_token = getattr(tokenizer, "manual_add_eos_token", False)  
         # self.datareader = DataReader()
         # self.samples, self.features = self.load_data()
 
@@ -31,31 +38,31 @@ class SequenceDataset(Dataset):
         answer = example['output']
         q_ids = self.tokenizer.encode(text=question, add_special_tokens=False)
         a_ids = self.tokenizer.encode(text=answer, add_special_tokens=False)
-        # if len(q_ids) > self.max_length - 2:  # 2 - gmask, bos
-        #     q_ids = q_ids[: self.max_length - 2]
-        # if len(a_ids) > self.max_length - 1:  # 1 - eos
-        #     a_ids = a_ids[: self.max_length - 1]
+
+        input_max_length = self.max_length-self.prefix_token_num-1
         
-        if len(q_ids) + len(a_ids)+1>self.max_length: # truncation=left
-            if len(a_ids)+1>self.max_length:
+        if len(q_ids) + len(a_ids)>input_max_length: # truncation=left
+            if len(a_ids)>=input_max_length:
                 q_ids = []
-                a_ids = a_ids[-(self.max_length-1):]
+                a_ids = a_ids[-(self.max_length):]
             else:
                 if self.input_truncation_side=="left":
-                    q_ids = q_ids[-(self.max_length-1-len(a_ids)):]
+                    q_ids = q_ids[-(input_max_length-len(a_ids)):]
                 else:
-                    q_ids = q_ids[:(self.max_length-1-len(a_ids))]
+                    q_ids = q_ids[:(input_max_length-len(a_ids))]
         
-        question_length = len(q_ids)  # chatglm1 - gmask, bos, chatglm2 - gmask, sop
-
         # input_ids = self.tokenizer.build_inputs_with_special_tokens(q_ids, a_ids)
         #TODO should be flexiable to most language model
+        input_ids = self.tokenizer.build_inputs_with_special_tokens(q_ids, a_ids)
+        labels = deepcopy(input_ids)
+
         if self.ignore_input_loss:
-            input_ids = q_ids + a_ids + [self.tokenizer.eos_token_id]
-            labels =    [self.ignore_label_id] * question_length + a_ids + [self.tokenizer.eos_token_id]
-        else:
-            input_ids = q_ids + a_ids + [self.tokenizer.eos_token_id]
-            labels =    q_ids + a_ids + [self.tokenizer.eos_token_id]
+            question_length = len(q_ids) + self.prefix_token_num  # chatglm1 - gmask, bos, chatglm2 - gmask, sop
+            labels[:question_length] = [self.ignore_label_id] * question_length
+        
+        if self.manual_add_eos_token:
+            input_ids.append(self.tokenizer.eos_token_id)
+            labels.append(self.tokenizer.eos_token_id)
         
         return {'input_ids': input_ids, 'labels': labels}
     
@@ -95,7 +102,7 @@ class SequenceDataset(Dataset):
         labels = torch.stack(labels)
         data_dict = {
             'input_ids': input_ids,
-            'attention_mask':input_ids.ne(self.tokenizer.pad_token_id), 
+            'attention_mask':input_ids.ne(self.tokenizer.pad_token_id).int(), 
             'inputs': input_texts,
             'outputs': output_texts,
             "origins": origins
@@ -129,14 +136,17 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
         self.val_batch_size = val_batch_size if val_batch_size>0 else batch_size
     
 
+    def load_data(self, file):
+        return json.load(open(file))
+
     def setup(self, stage: str):
         if stage in [pl.trainer.states.TrainerFn.FITTING]:
             train_path = path.join(self.data_dir, self.train_name)
             if path.exists(train_path):
-                train_data = json.load(open(train_path))
+                train_data = self.load_data(train_path)
                 val_path = path.join(self.data_dir, self.val_name)
                 if path.exists(val_path):
-                    val_data = json.load(open(val_path))
+                    val_data = self.load_data(val_path)
                 else:
                     shuffle = Random(42).shuffle
                     shuffle(train_data)
@@ -146,7 +156,9 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
                 raise FileNotFoundError
 
             train_data = [self.convert(x) for x in train_data]
+            train_data = [item for item in train_data if item]
             val_data= [self.convert(x) for x in val_data]
+            val_data = [item for item in val_data if item]
 
             self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side = self.input_truncation_side)
             self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="val", input_truncation_side = self.input_truncation_side)
@@ -155,18 +167,17 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
         
         elif stage==pl.trainer.states.TrainerFn.TESTING:
-            with open(path.join(self.data_dir, self.test_name)) as fin:
-                test_data = json.load(fin)
-                test_data = [self.convert(x) for x in test_data]
+            test_data = self.load_data(path.join(self.data_dir, self.test_name))
+            test_data = [self.convert(x) for x in test_data]
+            test_data = [item for item in test_data if item]
             self.test_data = SequenceDataset(test_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
             print("test_length:", len(self.test_data))
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
-            with open(path.join(self.data_dir, self.predict_name)) as fin:
-                predict_data = json.load(fin)
-                predict_data = [dict(**self.convert(x, default_output="need prediction"), 
-                                     **{"origin": x}) 
-                                     for x in predict_data]
+            predict_data = self.load_data(path.join(self.data_dir, self.predict_name))
+            predict_data = [dict(**self.convert(x, default_output="need prediction"), 
+                                    **{"origin": x}) 
+                                    for x in predict_data]
             self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
             print("precition_length:", len(self.predict_data))
 

@@ -2,6 +2,7 @@ datamodule:
   class_name: vqa.OKVQADM
   args:
     data_dir: /home/yadong/workspace/okvqa/datasets/train-full
+    predict_output_key: answer
 
 metrics:
   name: vqa_acc

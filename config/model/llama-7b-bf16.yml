@@ -1,5 +1,10 @@
 pretrain:
   path: /vault/pretrains/huggingface/huggyllama/llama-7b
+  args:
+    trust_remote_code: true
+
+tokenizer:
+  manual_add_eos_token: true
 
 config:
   use_cache: false

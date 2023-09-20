@@ -20,17 +20,11 @@ class LengthSampler:
         return np.random.choice(self.values)
 
 class IMDbLMDM(SequenceDM):
-    def __init__(self, data_dir = "imdb", val_batch_size: int = -1, **args):
+    def __init__(self, **args):
         super().__init__(**args)
-        self.data_dir = data_dir
 
         self.input_size = LengthSampler(4, 8)
         self.output_size = LengthSampler(20, 50)
-
-        if val_batch_size>0:
-            self.val_batch_size = val_batch_size
-        else:
-            self.val_batch_size = self.batch_size
 
     def convert(self, item):
         sample =  {
@@ -41,7 +35,7 @@ class IMDbLMDM(SequenceDM):
 
         tokens = item["text"].split(" ")
         input_tokens = tokens[:self.input_size()]
-        output_tokens = tokens[len(input_tokens):]
+        output_tokens = tokens[len(input_tokens):len(input_tokens)+self.output_size()]
         sample["input"] = " ".join(input_tokens)
         sample["output"] = " ".join(output_tokens)
         return sample

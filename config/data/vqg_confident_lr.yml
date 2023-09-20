@@ -1,9 +1,8 @@
 datamodule:
   class_name: vqg.ConfidentVQGDM
   args:
-    train_name: generated_vq.json
-    val_batch_size: 256
-    data_dir: /home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch0
+    train_name: train.json
+    data_dir: data_dir/okvqa
     max_length: 256
     max_new_tokens: 56
 

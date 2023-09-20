@@ -1,9 +1,8 @@
 datamodule:
   class_name: vqg.HelpfulVQGDM
   args:
-    train_name: train.json
-    val_batch_size: 16
-    data_dir: data_dir/okvqa
+    train_name: train_full_checked.json
+    data_dir: data_dir/okvqa/vqg
     max_length: 256
     max_new_tokens: 56
 

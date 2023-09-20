@@ -20,62 +20,20 @@ class VQAMergeDM(SequenceDM, ClassificationDataMixin):
         template = ("The following is an instruction that describes the task of question tendency identification "
                     "### Instruction: Is this a reasoning question or a visual question? "
                     "### Input: {context} "
-                    "### Response: "
-        )
+                    "### Response: ")
         return template.format(context=context)
     
     def convert(self, item):
+        if item["output"]=="none": return None # filter this type data
         return {
             "input":  self.generate_prompt(context=item["input"]),
             "output": item["output"]
         }
-
-    def setup(self, stage: str):
-        if stage == pl.trainer.states.TrainerFn.FITTING:
-            train_data = torch.load(os.path.join(self.data_dir, "train.pt"))
-            val_data = torch.load(os.path.join(self.data_dir, "test.pt"))
-            train_data = [self.convert(i) for i in train_data if i["output"]!="none"]
-            val_data = [self.convert(i) for i in val_data if i["output"]!="none"]
-            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side=self.input_truncation_side)
-            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="eval", input_truncation_side=self.input_truncation_side)
-            print("train_length:", len(self.train_data))
-            print("valid_length:", len(self.val_data))
-            self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
-        elif stage ==  pl.trainer.states.TrainerFn.TESTING:
-            val_data = torch.load(os.path.join(self.data_dir, "test.pt"))
-            val_data = [self.convert(i) for i in val_data if i["output"]!="none"]
-            self.test_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="eval", input_truncation_side=self.input_truncation_side)
-            print("test_length:", len(self.test_data))
-
-        elif stage==pl.trainer.states.TrainerFn.PREDICTING:
-            with open(os.path.join(self.data_dir, "prediction.json")) as fin:
-                predict_data = json.load(fin)
-                predict_data = [{"origin":x} for x in predict_data]
-            for item in predict_data:
-                item["input"] = self.generate_prompt(context=f"Context: {item['origin']['caption']} Question: {item['origin']['question']}")
-                item["output"] = "need prediction"
-            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=256, mode="test")
-            print("precition_length:", len(self.predict_data))
-
     
-    def save_prediction(self, output, output_name):
-        results = []
-        for origin, pred in output:
-            item = dict(**origin)
-            item["question type"] = pred
-            results.append(item)
-        with open(output_name, "w") as fout:
-            json.dump(results, fout, indent=4, ensure_ascii=False)
-
-
 class OKVQADM(SequenceDM, MetricDataMixin):
-    def __init__(self, data_dir = "", tokenizer = None, batch_size: int = 32,max_length=1024, max_new_tokens = 10):
-        pl.LightningDataModule.__init__(self)
-        self.batch_size = batch_size
-        self.tokenizer = tokenizer
-        self.max_new_tokens = max_new_tokens
-
-        self.data_dir = data_dir
+    def __init__(self, caption_type="general", **args):
+        super().__init__(**args)
+        self.caption_type = caption_type
 
     def generate_prompt(self, item):
         template = ("Below is an instruction that describes a task, paired with an input that provides further context. "
@@ -96,7 +54,7 @@ class OKVQADM(SequenceDM, MetricDataMixin):
         return sample
     def load_samples(self, keep_origin=False):
         question_file = path.join(self.data_dir, "questions.json")
-        caption_file = path.join(self.data_dir, "general_caption.json")
+        caption_file = path.join(self.data_dir, f"{self.caption_type}_caption.json")
         answer_file = path.join(self.data_dir, "annotations.json")
 
         with open(question_file) as fin:
@@ -136,6 +94,8 @@ class OKVQADM(SequenceDM, MetricDataMixin):
             print("train_length:", len(self.train_data))
             print("valid_length:", len(self.val_data))
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+            if stage == pl.trainer.states.TrainerFn.TESTING:
+                self.test_data = self.val_data
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             predict_data = self.load_samples(keep_origin=True)

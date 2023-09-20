@@ -1,0 +1,12 @@
+datamodule:
+  class_name: ie.DuEEFinDM
+  args:
+    train_name: duee_fin_train.json
+    data_dir: data_dir/duie
+    max_new_tokens: 256
+
+metrics:
+  name: f1
+  eval_calculate: true
+  origin: true
+  
