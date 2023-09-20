@@ -12,12 +12,17 @@ def set_random_seed(seed):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-def chain_get(data, keys, default):
+def chain_get(data, keys, default=None):
     if len(keys)==0: return default
     if len(keys)==1: return data.get(keys[0], default)
     if keys[0] not in data: return default
     return chain_get(data[keys[0]], keys[1:], default)
 
+def torch_gc():
+    if torch.cuda.is_available():
+        with torch.cuda.device("cuda"):
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 class Timer:
     def __init__(self, record=None, key=None):
