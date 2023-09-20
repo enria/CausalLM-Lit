@@ -1,6 +1,8 @@
 import torch
 import requests
 import json
+import numpy as np
+from utils import Timer
 
 class VQAConfidenceRewardModule():
     def __init__(self, api_url, reward_batch_size=8) -> None:
@@ -35,7 +37,7 @@ class VQAConfidenceRewardModule():
             image.append(origin["image_path"])
         score = self.vqa_service(vq, image)
         rewards = [torch.tensor((s-0.5)*2) for s in score]
-        return rewards
+        return rewards, {}
     
 
 class VisualHintHelpfulRewardModule():
@@ -59,7 +61,7 @@ Question: Why might someone go to this place?
 (Must return an answer. The final answer should be 1 or 2 words (maximum 2 words). If you are not sure, you can guess the most plausible answer) 
 Answer: shop"""
 
-    def __init__(self, api_url, vqa_batch_size=8, llm_batch_size=4, llm="chatglm") -> None:
+    def __init__(self, api_url, vqa_batch_size=8, llm_batch_size=4, llm="chatglm", scorer="vqa") -> None:
         self.api_url = api_url
         self.vqa_batch_size = vqa_batch_size
         self.llm_batch_size = llm_batch_size
@@ -81,9 +83,13 @@ Answer: shop"""
         sys.path.append("/home/yadong/workspace/okvqa/vqa4ok")
         from evaluation import sample_evaluate
         self.evaluate = sample_evaluate
+
+        self.scorer = scorer
+        if self.scorer=="bert":
+            from models.evaluate.llm_score import bertscore
     
     def is_no_question(self, question):
-        return question.lower()=="the information in the caption is enough to answer the question"
+        return question.strip().lower()=="the information in the caption is enough to answer the question"
 
     def vqa_service(self, items):
         url = self.api_url
@@ -105,47 +111,39 @@ Answer: shop"""
                 print(e)
     
     def llm_vqa(self, items, use_hint=False):
-        answers = []
-        if self.llm_batch_size<=1:
-            for sample in items:
-                question = sample["question"]
-                caption = sample["caption"]
+        for i in range(0, len(items), self.llm_batch_size):
+            batch_items = items[i:i+self.llm_batch_size]
+            batch = []
+            for item in batch_items:
+                question = item["question"]
+                caption = item["caption"]
                 if use_hint: 
-                    hints = [(i+1, q, a) for i,(q, a) in enumerate(zip([sample["vq"]], [sample["vqa"]]))]
+                    hints = [(i+1, q, a) for i,(q, a) in enumerate(zip([item["vq"]], [item["vqa"]]))]
                     hints_str = "Visual Hints: "+"\n".join([f"{i}. {q} {a}" for i,q,a in hints])
                 else:
                     hints_str = ""
-                try:
-                    response = self.llm.inference(caption, question, hints_str, refine=False)
-                except BaseException as e:
-                    print(e)
-                    response = ""
-                answers.append(response)
-        else:
-            for i in range(0, len(items), self.llm_batch_size):
-                batch = []
-                for j in range(i, min(i+ self.llm_batch_size, len(items))):
-                    sample = items[j]
-                    question = sample["question"]
-                    caption = sample["caption"]
-                    if use_hint: 
-                        hints = [(i+1, q, a) for i,(q, a) in enumerate(zip([sample["vq"]], [sample["vqa"]]))]
-                        hints_str = "Visual Hints: "+"\n".join([f"{i}. {q} {a}" for i,q,a in hints])
-                    else:
-                        hints_str = ""
-                    batch.append((caption, question, hints_str))
-                try:
+                batch.append((caption, question, hints_str))
+            try:
+                if len(batch)==1:
+                    caption, question, hints_str = batch[0]
+                    response = [self.llm.inference(caption, question, hints_str, refine=False)]
+                else:
                     response = self.llm.batch_inference(batch, refine=False)
-                except BaseException as e:
-                    print(e)
-                    response = [""]*len(batch)
-                answers.extend(response)
-        return answers
+                for item, answer in zip(batch_items, response):
+                    key = "hinted_answer" if use_hint else "origin_answer"
+                    item[key] = answer
+            except BaseException as e:
+                print(e)
     
     def calculate_score(self, item, answer_key):
-        return self.evaluate(item["answers"],item[answer_key])[1]
+        if self.scorer=="vqa":
+            hard_score = self.evaluate(item["answers"],item[answer_key])[1]
+            return hard_score
+        elif self.scorer=="bert":
+            predict_answer = item[answer_key]
+            bscore = bertscore([predict_answer]*len(item["answers"]), item["answers"])[-1] # p, r, f1
+            return (np.mean(bscore.tolist())-0.5)*2
     
-
     def __call__(self, output):
         items = []
         item_index = {}
@@ -162,25 +160,42 @@ Answer: shop"""
             else:
                 need_hint_items.append(item)
 
-        self.llm_vqa(items)
-        self.vqa_service(need_hint_items)
-        self.llm_vqa(need_hint_items, use_hint=True)
+        envs = {}
+        with Timer(envs, "time/llm_inference"):
+            self.llm_vqa(items)
+        with Timer(envs, "time/vqa_service"):
+            self.vqa_service(need_hint_items)
+        with Timer(envs, "time/hint_llm_inference"):
+            self.llm_vqa(need_hint_items, use_hint=True)
 
         for item in no_hint_items:
             vqa_score = self.calculate_score(item, "origin_answer")
-            item["denoise_reward"] = (vqa_score-0.5)*2
+            item["denoise_reward"] = (vqa_score - 0.5) * 2
             item["helpful_reward"] = 0
+            item["vqa_acc"] = vqa_score
+            item["vqa_confidence"] = 0.5
+
+            item["origin_vqa_acc"] = vqa_score
         
         for item in need_hint_items:
             origin_score = self.calculate_score(item, "origin_answer")
             hinted_score = self.calculate_score(item, "hinted_answer")
-            item["helpful_reward"] = hinted_score-origin_score
+            item["helpful_reward"] = hinted_score - origin_score
             item["denoise_reward"] = 0
+            item["vqa_acc"] = hinted_score
+
+            item["origin_vqa_acc"] = origin_score
         
         rewards = [0]*len(items)
         for item in items:
             item["faithful_reward"] = (item["vqa_confidence"]-0.5)*2
-            item["reward"] = item["helpful_reward"] + item["denoise_reward"]
+            item["reward"] = item["helpful_reward"]
             rewards[item_index[item["question_id"]]] = torch.tensor(item["reward"])
+        
+        envs["env/faithful_reward_mean"] = np.mean([x["faithful_reward"] for x in items])
+        envs["env/denoise_reward_mean"]  = np.mean([x["denoise_reward"] for x in items])
+        envs["env/helpful_reward_mean"] = np.mean([x["helpful_reward"] for x in items])
+        envs["env/vqa_acc"] = np.mean([x["vqa_acc"] for x in items])
+        envs["env/origin_vqa_acc"] = np.mean([x["origin_vqa_acc"] for x in items])
 
-        return rewards
+        return rewards, envs

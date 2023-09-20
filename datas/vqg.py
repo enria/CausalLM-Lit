@@ -6,11 +6,11 @@ from .rl_data import RLDM
 from .seq_data import SequenceDM, PredictionSaveMixin
 
 
-class VQGDM(SequenceDM):
+class CaptionVQGDM(SequenceDM):
     def convert(self, item):
         sample =  {
             "input":  f"### Instruction:\n{item['instruction']}\n\n### Input:\n{item['input']}\n\n### Response:\n",
-            "output": item["output"],
+            "output": f"{item['output']}",
             "origin": item
         }
         return sample
@@ -32,28 +32,10 @@ class HelpfulVQGDM(RLDM, PredictionSaveMixin):
         return sample
     
     def calculate_metrics(self, output, reward_model):
-        items, batch = [], []
-        llm_answers = []
-        batch_size = 256
-        for i, (origin, pred) in tqdm(enumerate(output), total=len(output)):
-            pred = pred.strip()
-            item = dict(**origin, **{"vq": pred})
-            items.append(item)
-            batch.append(item)
-
-            if len(batch)==batch_size or i==len(output)-1:
-                vqa_anwsers = reward_model.vqa_service([i["vq"] for i in batch], [i["image_path"] for i in batch])
-                for (vqa_answer, vqa_confidence), item in zip(vqa_anwsers, batch):
-                    item["vqa"] = vqa_answer
-                    item["vqa_confidence"] = vqa_confidence
-                batch_answers = reward_model.llm_vqa(batch, use_hint=True)
-                llm_answers.extend(batch_answers)
-            
-                batch.clear()
-        
-        scores = reward_model.calculate_score(items, llm_answers)
+        rewards, envs = reward_model(output)
         return {
-            "vqa_acc": sum(scores)/len(scores)*100
+            "vqa_acc": envs["env/vqa_acc"]*100,
+            "origin_vqa_acc": envs["env/origin_vqa_acc"]*100
         }
     
     def save_prediction(self, output, output_path, reward_model):

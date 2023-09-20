@@ -18,4 +18,4 @@ class PositiveSentimentRewardModule():
             texts.append(prompt + " " + pred)
         pipe_outputs = self.pipeline(texts, **self.sent_kwargs)
         rewards = [torch.tensor(output[1]["score"]) for output in pipe_outputs]
-        return rewards
+        return rewards, {}
