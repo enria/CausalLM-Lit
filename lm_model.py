@@ -105,12 +105,14 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
     def on_test_epoch_end(self) -> None:
         self.on_validation_epoch_end()
         
-    def predict_step(self, batch, batch_idx) :
+    def predict_step(self, batch, batch_idx, step_outputs = None, datamodule = None) :
         inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.device)
+        if datamodule is None:
+            datamodule = self.trainer.datamodule
         outputs = self.model.generate(input_ids=inputs['input_ids'], 
                                     attention_mask=inputs['attention_mask'], 
                                     num_beams=self.config.num_beams, 
-                                    max_new_tokens=self.trainer.datamodule.max_new_tokens, 
+                                    max_new_tokens=datamodule.max_new_tokens, 
                                     use_cache=True,
                                     return_dict_in_generate=True,
                                     output_hidden_states=True, 
@@ -119,7 +121,12 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
         
         pred = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 
                 for output_ids in outputs[0][:,inputs['input_ids'].shape[1]:]]
-        self.validation_step_outputs.extend([(x, p) for x, p in zip(batch["origins"], pred)])
+        
+        batch_output = [(x, p) for x, p in zip(batch["origins"], pred)]
+        if step_outputs is not None:
+            step_outputs.extend(batch_output)
+        else:
+            self.validation_step_outputs.extend(batch_output)
     
     def on_predict_epoch_end(self):
         from datas.seq_data import PredictionSaveMixin

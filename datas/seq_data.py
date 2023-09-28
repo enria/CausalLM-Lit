@@ -135,6 +135,8 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size if val_batch_size>0 else batch_size
     
+    def convert(item, keep_origin=False):
+        raise NotImplementedError
 
     def load_data(self, file):
         return json.load(open(file))
@@ -175,9 +177,7 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             predict_data = self.load_data(path.join(self.data_dir, self.predict_name))
-            predict_data = [dict(**self.convert(x, default_output="need prediction"), 
-                                    **{"origin": x}) 
-                                    for x in predict_data]
+            predict_data = [self.convert(x, keep_origin=True) for x in predict_data]
             self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
             print("precition_length:", len(self.predict_data))
 
@@ -192,8 +192,13 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
     def test_dataloader(self):
         return DataLoader(self.test_data, batch_size=self.val_batch_size, collate_fn=self.test_data.collate_fn)
 
-    def predict_dataloader(self):
-        return DataLoader(self.predict_data, batch_size=self.val_batch_size, collate_fn=self.predict_data.collate_fn)
+    def predict_dataloader(self, predict_data=None):
+        if predict_data is None:
+            predict_dataset = self.predict_data
+        else:
+            predict_data = [self.convert(item, keep_origin=True) for item in predict_data]
+            predict_dataset = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+        return DataLoader(predict_dataset, batch_size=self.val_batch_size, collate_fn=predict_dataset.collate_fn)
     
     def save_prediction(self, output, output_path):
         results = []
