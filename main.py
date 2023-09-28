@@ -52,6 +52,7 @@ def parse_args():
 
     parser.add_argument("--project",  type=str, default=None, help="wandb project name")
     parser.add_argument("--run_name",  type=str, default="base", help="wandb run name")
+    parser.add_argument("--log_every_n_steps",  type=int, default=10, help="lightning log_every_n_steps")
 
     args, extra_args = parser.parse_known_args()
 
@@ -60,8 +61,7 @@ def parse_args():
     data_config = OmegaConf.load("config/data/"+args.data_config_name+".yml")
     args.__setattr__("model_config", arg_utils.merge_model_config(extra_args, model_config))
     args.__setattr__("data_config", arg_utils.merge_data_config(extra_args, data_config))
-
-    print(args)
+    utils.print_config(args)
     print('--------config----------')
 
     return args
@@ -120,7 +120,7 @@ def main(args):
             callbacks=callbacks,
             logger = logger,
             devices=1,
-            log_every_n_steps=10,
+            log_every_n_steps=args.log_every_n_steps,
             strategy="ddp",
             accumulate_grad_batches=args.accumulate_grads
         )
@@ -170,6 +170,7 @@ def main(args):
         plt.xlabel('Value')
         plt.ylabel('Frequency')
         plt.savefig("output/input_length.svg")
+        
 
 if __name__ == '__main__':
     args = parse_args()
