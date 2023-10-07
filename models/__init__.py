@@ -151,7 +151,7 @@ def load_reinforcement_model(config):
 
 def load_reward_model(config):
     module_name, class_name = config.reward.class_name.rsplit(".",maxsplit=2)
-    module = importlib.import_module("."+module_name, package="models")
+    module = importlib.import_module(".reward."+module_name, package="models")
     class_obj = getattr(module, class_name)
     if "args" in config.reward:
         reward_model = class_obj(**config.reward.args)

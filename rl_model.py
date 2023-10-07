@@ -33,7 +33,7 @@ class ReinforcementLMModel(pl.LightningModule):
                                mini_batch_size=config.mini_batch_size,
                                gradient_accumulation_steps=config.accumulate_grads)
 
-        self.ppo_trainer = PPOTrainer(config = ppo_config, 
+        self.ppo_trainer = PPOTrainer(config = ppo_config,
                                       model=self.model, 
                                       ref_model= self.ref_model, 
                                       tokenizer= self.tokenizer)
@@ -56,7 +56,7 @@ class ReinforcementLMModel(pl.LightningModule):
             "min_length":-1,
             "top_k": 0.0,
             "top_p": 1.0,
-            "do_sample": True,
+            "do_sample": False,
             "pad_token_id": self.tokenizer.eos_token_id,
             "max_new_tokens": self.trainer.datamodule.max_new_tokens
         }
@@ -137,14 +137,17 @@ class ReinforcementLMModel(pl.LightningModule):
         logs.update(stats)
         logs["trainer/global_step"] = self.trainer.global_step
 
-        table_rows = [list(r) for r in zip(batch["inputs"], preds, [r.item() for r in rewards])]
-        logs.update({"game_log": wandb.Table(columns=["query", "response", "reward"], rows=table_rows)})
+        # table_rows = [list(r) for r in zip(batch["inputs"], preds, [r.item() for r in rewards])]
+        # logs.update({"game_log": wandb.Table(columns=["query", "response", "reward"], rows=table_rows)})
         
         self.trainer.logger.experiment.log(logs)
     
     def reinforcement_optimization_step(self, query_tensors, response_tensors, rewards):
         self.trainer.fit_loop.epoch_loop.manual_optimization._on_before_step()
-        stats = self.ppo_trainer.step(query_tensors, response_tensors,  rewards)
+        if self.config.freeze:
+            stats = {}
+        else:
+            stats = self.ppo_trainer.step(query_tensors, response_tensors,  rewards)
         self.trainer.fit_loop.epoch_loop.manual_optimization._on_after_step()
         return stats
 
@@ -196,10 +199,14 @@ class ReinforcementLMModel(pl.LightningModule):
                 for output_ids in outputs[:,inputs['input_ids'].shape[1]:]]
         self.tokenizer.padding_side = padding_side_default
                 
-        self.validation_step_outputs.extend([(x, p) for x, p in zip(batch['inputs'], batch["origins"], preds)])
+        self.validation_step_outputs.extend([(x, p) for x, p in zip(batch["origins"], preds)])
     
     def on_predict_epoch_end(self):
         from datas.seq_data import PredictionSaveMixin
         if  isinstance(self.trainer.datamodule, PredictionSaveMixin):
-            self.trainer.datamodule.save_prediction(self.validation_step_outputs, os.path.join("output",self.config.predict_output_name), self.reward_model)
+            if not os.path.exists(self.config.predict_output_dir):
+                os.makedirs(self.config.predict_output_dir)
+            self.trainer.datamodule.save_prediction(self.validation_step_outputs, 
+                                                    os.path.join(self.config.predict_output_dir, self.config.predict_output_name), 
+                                                    self.reward_model)
         self.validation_step_outputs.clear()

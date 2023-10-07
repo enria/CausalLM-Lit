@@ -189,7 +189,9 @@ Answer: shop"""
         rewards = [0]*len(items)
         for item in items:
             item["faithful_reward"] = (item["vqa_confidence"]-0.5)*2
+            # item["reward"] = item["helpful_reward"]*2+item["vqa_acc"]
             item["reward"] = item["helpful_reward"]
+            # item["reward"] = item["faithful_reward"]
             rewards[item_index[item["question_id"]]] = torch.tensor(item["reward"])
         
         envs["env/faithful_reward_mean"] = np.mean([x["faithful_reward"] for x in items])

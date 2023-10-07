@@ -29,16 +29,21 @@ def parse_args():
     # 设置参数
     parser = argparse.ArgumentParser()
     parser.add_argument("--stage", type=str, default="train", choices=["train","test","predict","check"], help="the stage of learning process")
-    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training  (default: 8)")
-    parser.add_argument("--val_batch_size", type=int, default=-1, help="input batch size for validation and test (default: 8)")
-    parser.add_argument("--mini_batch_size", type=int, default=16, help="batch size for ppo optimization (default: 8)")
-    parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--data_config_name", type=str, required=True, help="model config file name")
+
+    parser.add_argument("--freeze", action='store_true', help="not optim model (useful to see baseline)")
+    parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
+    parser.add_argument("--no_early_stop", action='store_true', help="not perform early stop")
+    parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training  (default: 8)")
+    parser.add_argument("--val_batch_size", type=int, default=16, help="input batch size for validation and test (default: 16)")
+    parser.add_argument("--mini_batch_size", type=int, default=16, help="batch size for ppo optimization (default: 8)")
+
+    parser.add_argument("--num_beams", type=int, default=1, help="number of beam search in eval step (default: 1)")
+
     parser.add_argument("--accumulate_grads", type=int, default=4, help="accumulate Grads for train steps (default: 4)")
     parser.add_argument("--warmup_rate", type=float, default=0.1, help="warmup rate (default: 0.1)")
-    parser.add_argument("--num_beams", type=int, default=1, help="number of beam search in eval step (default: 1)")
 
     parser.add_argument("--train_num", type=int, default=-1,help="train data number")
     parser.add_argument("--dev_num", type=int, default=-1,help="train data number")
@@ -98,30 +103,30 @@ def main(args):
             )
             early_stopping=EarlyStopping("val_reward", mode="max",patience=4)
         
-        resume_checkpoint=None
-        if args.resume_ckpt:
-            resume_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
+        callbacks = [ckpt_callback]
+        if not args.no_early_stop:
+            callbacks.append(early_stopping)
         
-        # best_ckpt_callback = RenameBestCheckpointCallback(ckpt_callback)
-
         run_name = args.run_name
         if run_name == "base":
             run_name = f"{args.data_config_name}({args.model_config_name})"
         logger = WandbLogger(name=run_name, project=args.project, offline=args.project==None)
 
+        resume_checkpoint=None
+        if args.resume_ckpt:
+            resume_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
+
         # 设置训练器
         trainer = pl.Trainer(
             max_epochs=args.max_epochs,
             logger = logger,
-            callbacks=[ckpt_callback, early_stopping],
+            callbacks=callbacks,
             devices=1,
             log_every_n_steps=1
         )
 
         # 开始训练模型
         trainer.fit(model, ckpt_path=resume_checkpoint, datamodule=data_module)
-
-        ckpt_callback.best_model_path
 
     elif args.stage=="test":
         print("start test model ...")
