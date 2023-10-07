@@ -3,6 +3,19 @@ import numpy as np
 import random
 import time
 
+
+def print_config(config):
+    from omegaconf import OmegaConf
+    import yaml
+    from copy import deepcopy
+    config_dict = deepcopy(vars(config))
+    if "data_config" in config_dict:
+        config_dict["data_config"] = OmegaConf.to_container(config_dict["data_config"], resolve=True)
+    if "model_config" in config_dict:
+        config_dict["model_config"] = OmegaConf.to_container(config_dict["model_config"], resolve=True)
+    print(yaml.dump(config_dict))
+
+
 def set_random_seed(seed):
     random.seed(seed)
     np.random.seed(seed)

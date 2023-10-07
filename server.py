@@ -3,10 +3,6 @@ import sys
 import os
 import argparse
 
-import lightning.pytorch as pl
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint,LearningRateMonitor
-from lightning.pytorch.loggers.wandb import WandbLogger
-
 from omegaconf import OmegaConf
 
 # 添加src目录
