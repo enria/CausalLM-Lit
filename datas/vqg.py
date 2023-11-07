@@ -7,7 +7,7 @@ from .seq_data import SequenceDM, PredictionSaveMixin
 
 
 class CaptionVQGDM(SequenceDM):
-    def convert(self, item):
+    def convert(self, item, keep_origin=True):
         sample =  {
             "input":  f"### Instruction:\n{item['instruction']}\n\n### Input:\n{item['input']}\n\n### Response:\n",
             "output": f"{item['output']}",
@@ -24,6 +24,7 @@ class ConfidentVQGDM(RLDM):
         return sample
 
 class HelpfulVQGDM(RLDM, PredictionSaveMixin):
+
     def convert(self, item):
         sample =  {
             "input":  f"### Instruction:\n{item['instruction']}\n\n### Input:\n{item['input']}\n\n### Response:\n",
@@ -48,14 +49,9 @@ class HelpfulVQGDM(RLDM, PredictionSaveMixin):
             batch.append(item)
 
             if len(batch)==batch_size or i==len(output)-1:
-                vqa_anwsers = reward_model.vqa_service([i["vq"] for i in batch], [i["image_path"] for i in batch])
-                for (vqa_answer, vqa_confidence), item in zip(vqa_anwsers, batch):
-                    item["vqa"] = vqa_answer
-                    item["vqa_confidence"] = vqa_confidence
-                hinted_llm_answers = reward_model.llm_vqa(batch, use_hint=True)
-                for answer, item in zip(hinted_llm_answers, batch):
-                    item["answer"] = answer
-                
+                reward_model.vqa_service(batch)
+                # reward_model.llm_vqa(batch)
+                # reward_model.llm_vqa(batch, use_hint=True)
                 batch.clear()
 
         with open(output_path, "w") as fout:

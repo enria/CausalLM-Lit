@@ -1,13 +1,11 @@
 datamodule:
-  class_name: vqa.OKVQADM
+  class_name: vqa.AOKVQADM
   args:
-    data_dir: /home/yadong/workspace/okvqa/datasets/train-full
+    data_dir: /home/yadong/workspace/okvqa/datasets/aokvqa/train-full
     predict_output_key: answer
     max_new_tokens: 10
-
 
 metrics:
   name: vqa_acc
   eval_calculate: true
   origin: true
-  

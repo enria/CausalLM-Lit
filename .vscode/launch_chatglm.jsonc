@@ -5,65 +5,182 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "VQAv2 train (llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "justMyCode": false,
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--ckpt_save_path", "weights/vqav2",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqav2",
+                "--project", "VQAv2",
+                "--run_name", "llama"
+            ],
+            "presentation": { "group": "VQAv2"}
+        },
+        {
+            "name": "VQAv2 test (llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "justMyCode": false,
+            "args": [
+                "--stage","test",
+                "--batch_size","16",
+                "--ckpt_save_path", "weights/vqav2",
+                "--resume_ckpt", "base_acc=52.929_epoch=1.ckpt",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqav2",
+                "--project", "VQAv2",
+                "--run_name", "llama"
+            ],
+            "presentation": { "group": "VQAv2"}
+        },
+        {
+            "name": "VQA Merge train(llama-bf16)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--warmup_rate","0",
+                "--batch_size","4",
+                "--model_config", "llama-7b-bf16",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                "--project","VQA Merge",
+                "--run_name","lightning_llama-7b-bf16_3type"
+            ],
+            "presentation": { "group": "VQA-Merge"}
+        },
+        {
+            "name": "VQA Merge predict(llama-bf16)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","predict",
+                "--batch_size","8",
+                "--model_config", "llama-7b-bf16",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                "--predict_ckpt_name", "base_f1=51.903_epoch=5.ckpt"
+            ],
+            "presentation": { "group": "VQA-Merge"}
+        },
+        {
+            "name": "VQA Merge train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--warmup_rate","0",
+                "--batch_size","4",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                // "--project","VQA Merge",
+                // "--run_name","lightning_llama-7b-bf16_3type",
+                "--M.peft.r=64"
+            ],
+            "presentation": { "group": "VQA-Merge"}
+        },
+        {
+            "name": "VQA Merge test(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "env": {"CUDA_VISIBLE_DEVICES":"0"},
+            "justMyCode": false,
+            "args": [
+                "--stage","test",
+                "--batch_size","4",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge/lt_peft",
+                "--resume_ckpt", "base_f1=50.865_epoch=5.ckpt"
+            ],
+            "presentation": { "group": "VQA-Merge"}
+        },
+        {
+            "name": "VQA Merge predict(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--stage","predict",
+                "--batch_size","8",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqa_merge",
+                "--num_beams","1",
+                "--ckpt_save_path", "weights/vqa_merge",
+                "--predict_ckpt_name", "base_f1=50.865_epoch=6.ckpt"
+            ],
+            "presentation": { "group": "VQA-Merge"}
+        },
+        {
+            "name": "STaR4VQA predict(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/lightning_train",
+            "env": {
+                "CUDA_VISIBLE_DEVICES":"6"
+            },
+            "justMyCode": false,
+            "args": [
+                "--stage", "predict", 
+                "--batch_size", "16", 
+                "--model_config", "llama-7b-qlora", 
+                "--data_config", "instruction",
+                "--ckpt_save_path", "/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/epoch9/out", 
+                "--predict_ckpt_name", "best.ckpt", 
+                "--predict_output_dir", "/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/v3.0", 
+                "--predict_output_name", "dev-full_generated_vq.json",
+                "--D.datamodule.args.data_dir=/home/yadong/workspace/llama/STaR4VQA/output/bootstrap/v3.0", 
+                "--D.datamodule.args.predict_name=dev-full.json", 
+                "--D.datamodule.args.predict_output_key=vq"
+            ],
+            "presentation": { "group": "STaR4VQA" }
+        },
+        {
             "name": "OK-VQA train(llama)",
             "type": "python",
             "request": "launch",
             "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "env": {"CUDA_VISIBLE_DEVICES":"7"},
             "args": [
                 "--stage","train",
                 "--batch_size","8",
+                // "--warmup_rate", "0.1",
                 "--model_config", "llama-7b-qlora",
                 "--data_config", "okvqa",
+                "--num_beams","1",
                 "--ckpt_save_path", "weights/okvqa/caption_vqa",
                 "--project", "OKVQA",
-                "--run_name","llama"
-            ],
-            "presentation": {"group": "OK-VQA"}
-        },
-        {
-            "name": "OK-VQA train(llama2)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"5"},
-            "args": [
-                "--stage","train",
-                "--batch_size","8",
-                "--val_batch_size","1",
-                "--model_config", "llama2-7b-qlora",
-                "--data_config", "okvqa",
-                "--ckpt_save_path", "weights/okvqa/caption_vqa",
-                "--project", "OKVQA",
-                "--run_name","llama2",
-                "--ckpt_name_prefix", "llama2_debug"
-            ],
-            "presentation": {"group": "OK-VQA"}
-        },
-        {
-            "name": "OK-VQA train(llama2 13)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"5"},
-            "args": [
-                "--stage","train",
-                "--batch_size","16",
-                "--val_batch_size","1",
-                // "--train_num", "1000",
-                // "--test_num", "100",
-                "--model_config", "llama2-13b-qlora",
-                "--data_config", "okvqa",
-                "--ckpt_save_path", "weights/okvqa/caption_vqa",
-                "--project", "OKVQA",
-                "--run_name","llama2",
-                "--ckpt_name_prefix", "llama2-13_debug"
+                "--run_name","llama_general-caption_refactor"
             ],
             "presentation": {"group": "OK-VQA"}
         },
@@ -86,28 +203,6 @@
             "presentation": {"group": "OK-VQA"}
         },
         {
-            "name": "OK-VQA test(llama2)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"6"},
-            "args": [
-                "--stage","test",
-                "--val_batch_size","8",
-                "--model_config", "llama2-7b-qlora",
-                "--data_config", "okvqa",
-                "--ckpt_save_path", "weights/okvqa/caption_vqa",
-                "--resume_ckpt", "llama2_debug_vqa_acc=41.400_epoch=1.ckpt",
-                // "--D.datamodule.args.data_dir=/home/yadong/workspace/okvqa/datasets/dev-full",
-                "--D.datamodule.args.caption_type=general",
-                "--predict_output_dir=output/okvqa/caption_vqa",
-                // "--predict_output_name=llama2_predict_bs=16.json"
-            ],
-            "presentation": {"group": "OK-VQA"}
-        },
-        {
             "name": "OK-VQA predict(llama)",
             "type": "python",
             "request": "launch",
@@ -117,8 +212,8 @@
             "env": {"CUDA_VISIBLE_DEVICES":"6"},
             "args": [
                 "--stage","predict",
-                "--val_batch_size","1",
-                "--model_config", "llama2-7b-qlora",
+                "--batch_size","16",
+                "--model_config", "llama-7b-qlora",
                 "--data_config", "okvqa",
                 "--ckpt_save_path", "weights/okvqa",
                 "--resume_ckpt", "base_vqa_acc=48.768_epoch=2.ckpt",
@@ -126,28 +221,6 @@
                 "--D.datamodule.args.caption_type=rl_2k_sample",
                 "--predict_output_dir=output/okvqa/caption_vqa",
                 "--predict_output_name=rl_2k_sample_predict.json"
-            ],
-            "presentation": {"group": "OK-VQA"}
-        },
-        {
-            "name": "OK-VQA predict(llama2)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"6"},
-            "args": [
-                "--stage","predict",
-                "--val_batch_size","8",
-                "--model_config", "llama2-7b-qlora",
-                "--data_config", "okvqa",
-                "--ckpt_save_path", "weights/okvqa/caption_vqa",
-                "--resume_ckpt", "llama2_debug_vqa_acc=45.039_epoch=2.ckpt",
-                "--D.datamodule.args.data_dir=/home/yadong/workspace/okvqa/datasets/dev-full",
-                "--D.datamodule.args.caption_type=general",
-                "--predict_output_dir=output/okvqa/caption_vqa",
-                "--predict_output_name=llama2_predict_bs=16.json"
             ],
             "presentation": {"group": "OK-VQA"}
         },
@@ -175,51 +248,15 @@
             "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"7"},
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
             "args": [
                 "--stage","train",
-                "--batch_size","16",
+                "--batch_size","8",
                 "--model_config", "llama-7b-qlora",
                 "--data_config", "aokvqa",
                 "--ckpt_save_path", "weights/aokvqa/caption_vqa",
                 "--project", "AOKVQA",
                 "--run_name","llama_ofa-caption"
-            ],
-            "presentation": {"group": "AOK-VQA"}
-        },
-        {
-            "name": "AOK-VQA test(llama)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"7"},
-            "args": [
-                "--stage","test",
-                "--batch_size","16",
-                "--model_config", "llama-7b-qlora",
-                "--data_config", "aokvqa",
-                "--ckpt_save_path", "weights/aokvqa/caption_vqa",
-                "--resume_ckpt", "base_vqa_acc=42.866_epoch=2.ckpt"
-            ],
-            "presentation": {"group": "AOK-VQA"}
-        },
-        {
-            "name": "AOK-VQA test(llama2)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"7"},
-            "args": [
-                "--stage","test",
-                "--batch_size","1",
-                "--model_config", "llama2-7b-qlora",
-                "--data_config", "aokvqa",
-                "--ckpt_save_path", "weights/aokvqa/caption_vqa",
-                "--resume_ckpt", "llama2_vqa_acc=31.178_epoch=1.ckpt"
             ],
             "presentation": {"group": "AOK-VQA"}
         },
@@ -230,10 +267,10 @@
             "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
             "args": [
                 "--stage","train",
-                "--batch_size","16",
+                "--batch_size","8",
                 "--model_config", "llama2-7b-qlora",
                 "--data_config", "aokvqa",
                 "--ckpt_save_path", "weights/aokvqa/caption_vqa",
@@ -242,6 +279,209 @@
                 "--run_name","llama2_ofa-caption"
             ],
             "presentation": {"group": "AOK-VQA"}
+        },
+        {
+            "name": "IMDB Positive train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","train",
+                "--batch_size","128",
+                "--val_batch_size","16",
+                "--mini_batch_size", "4",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "imdb_positive",
+                "--ckpt_save_path", "weights/imdb_lm",
+                "--project", "IMDB-RL",
+                "--run_name","positive_w_batch_llama",
+                "--M.pretrain.path=weights/imdb_lm/llama_lm_qlora_val_loss=2.543_epoch=0.ckpt.full"
+            ],
+            "presentation": {"group": "IMDb"}
+        },
+        {
+            "name": "IMDB LM train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "args": [
+                "--stage","train",
+                "--batch_size","4",
+                "--max_epochs","6",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "imdb_lm",
+                "--ckpt_save_path", "weights/imdb_lm",
+                "--ckpt_name_prefix", "llama_lm_qlora",
+                "--save_full_model",
+                "--project", "IMDB-LM",
+                "--run_name","llama_qlora_short"
+            ],
+            "presentation": {"group": "IMDb"}
+        },
+        {
+            "name": "IMDB LM train(llama-bf16)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"5"},
+            "args": [
+                "--stage","train",
+                "--batch_size","4",
+                "--max_epochs","6",
+                "--model_config", "llama-7b-bf16",
+                "--data_config", "imdb_lm",
+                "--ckpt_save_path", "weights/imdb_lm",
+                "--ckpt_name_prefix", "llama_lm_bf16",
+                "--save_full_model",
+                "--project", "IMDB-LM",
+                "--run_name","llama_bf16_short"
+            ],
+            "presentation": {"group": "IMDb"}
+        },
+        {
+            "name": "RefCOCO train",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"7"},
+            "args": [
+                "--stage","train",
+                "--batch_size","1",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "refcoco",
+                "--ckpt_save_path", "weights/refcoco",
+                "--project", "RefCOCO",
+                "--run_name","sft_llama",
+                "--D.datamodule.args.max_length=768"
+            ],
+            "presentation": {"group": "RefCOCO"}
+        },
+        {
+            "name": "VQG Confident train(llama)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--val_batch_size=8",
+                "--mini_batch_size","2",
+                "--accumulate_grads=8",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqg_confident_lr",
+                "--ckpt_save_path", "weights/vqg",
+                "--project", "VQG-Confident-RL",
+                "--run_name","llama_lr1e4-ag8_ref_chatgpt-origin-question",
+                "--D.ppo.generate_batch_size=8",
+                "--M.pretrain.path=weights/vqg_lm/llama_lora8_chatgpt_val_loss=0.947_epoch=0.ckpt.full",
+            ],
+            "presentation": {"group": "VQG-Confident-RL"}
+        },
+        {
+            "name": "VQG Confident train(llama-debug)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"7"},
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--val_batch_size=8",
+                "--mini_batch_size","2",
+                "--accumulate_grads=8",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqg_confident_lr",
+                "--ckpt_save_path", "weights/vqg",
+                "--project", "VQG-RL",
+                "--run_name","llama_lr1e4-ag8_ref_chatgpt-origin-question_helpful-reward",
+                "--D.ppo.generate_batch_size=8",
+                "--D.datamodule.train_name=def_full.json",
+                "--M.pretrain.path=weights/vqg/llama_val_loss=0.138_epoch=2.ckpt.full",
+            ],
+            "presentation": {"group": "VQG-Confident-RL"}
+        },
+        {
+            "name": "VQG Helpful train(chatglm-inference)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"4"},
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--mini_batch_size","4",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqg_help_lr",
+                "--ckpt_save_path", "weights/vqg_help_lr",
+                "--ckpt_name_prefix", "llama_chatglm",
+                "--project", "VQG-RL",
+                "--run_name","llama_chatglm-lemma_bs16_ref_vqg-lm",
+                "--D.reward.args.llm=chatglm",
+                "--M.pretrain.path=weights/vqg_lm/llama_lora8_chatgpt_val_loss=0.947_epoch=0.ckpt.full"
+            ],
+            "presentation": {"group": "VQG-Helpful-Train"}
+        },
+        {
+            "name": "VQG Helpful train(chatglm-inference_bertscore)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "args": [
+                "--stage","train",
+                "--batch_size","16",
+                "--mini_batch_size","2",
+                "--accumulate_grads", "8",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqg_help_lr",
+                "--ckpt_save_path", "weights/vqg_help_lr",
+                "--ckpt_name_prefix", "llama_chatglm",
+                "--project", "VQG-RL",
+                "--run_name","llama_chatglm-lemma_bs16_ref_vqg-lm",
+                "--D.reward.args.llm=chatglm",
+                "--D.reward.args.scorer=bert",
+                "--M.pretrain.path=weights/vqg_lm/llama_lora8_chatgpt_val_loss=0.947_epoch=0.ckpt.full"
+            ],
+            "presentation": {"group": "VQG-Helpful-Train"}
+        },
+        {
+            "name": "VQG Helpful test(chatglm-inference)",
+            "type": "python",
+            "request": "launch",
+            "program": "rl_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "args": [
+                "--stage","test",
+                "--model_config", "llama-7b-qlora",
+                "--data_config", "vqg_help-lr",
+                "--ckpt_save_path", "weights/vqg",
+                "--resume_ckpt", "sanity_vqa_acc=26.000_epoch=0.ckpt",
+                "--D.reward.args.llm=chatglm",
+                "--M.pretrain.path=weights/vqg/llama_chcked_val_loss=0.152_epoch=5.ckpt.full",
+                "--M.optim.lr=1.41e-5"
+            ],
+            "presentation": {"group": "VQG-RL"}
         },
         {
             "name": "VQG Helpful train(llama2)",
@@ -273,7 +513,7 @@
                 // "--no_early_stop", 
                 //     "--run_name","llama_llama2_1k_no-cache",
                 //         "--M.config.use_cache=false",
-                //      "--run_name","llama_llama2_1k_use-cache",
+                //     // "--run_name","llama_llama2_1k_use-cache",
                 
                 "--D.reward.args.scorer=soft_vqa",
                 "--D.datamodule.args.train_name=train_2k_rl.json",
@@ -288,58 +528,6 @@
                 // "--M.peft.r=32",
                 // "--run_name","llama_llama2_2k_no-cache_r=32",
                 // "--ckpt_name_prefix", "llama_llama2_2k_lora32",
-
-            ],
-            "presentation": {"group": "VQG-Helpful-Train"}
-        },
-        {
-            "name": "VQG Helpful train(llama2-13B)",
-            "type": "python",
-            "request": "launch",
-            "program": "rl_main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"6"},
-            "args": [
-                "--stage","train",
-                "--batch_size","16",
-                "--mini_batch_size","2",
-                "--accumulate_grads=8",
-                // "--freeze",
-                "--model_config", "llama2-13b-qlora",
-                "--data_config", "vqg_help_rl",
-                "--ckpt_save_path", "weights/vqg_help_rl",
-                "--ckpt_name_prefix", "llama2-13B_llama2-7B",
-                "--project", "VQG-RL",
-                "--run_name","llama2-13B_llama2-7B",
-                "--D.reward.args.llm=llama",
-                "--M.pretrain.path=weights/vqg_lm/llama2-13B_val_loss=0.700_epoch=4.ckpt.full",
-                "--M.config.use_cache=false",
-                
-                // "--D.reward.args.scorer=soft_vqa",
-                // "--D.datamodule.args.train_name=train_2k.json",
-                // "--ckpt_name_prefix", "llama2-13B_llama2-7B_2ktrain_softscore_freeze",
-                // "--run_name","llama2-13B_llama2-7B_freeze",
-                // "--max_epochs", "20",
-                // "--no_early_stop"
-
-                "--D.reward.args.scorer=vqa",
-                "--D.datamodule.args.data_dir=data_dir/okvqa/vqg/legacy/helpful_1104before",
-                "--D.datamodule.args.train_name=train_2k_rl_general-caption.json",
-                "--M.pretrain.path=weights/vqg_lm/llama2-13B_legacy-data_val_loss=0.608_epoch=4.ckpt.full",
-                "--ckpt_name_prefix", "llama2-13B_llama2-7B_2ktrain-legacy-general",
-                "--run_name","llama2-13B_llama2-7B_legacy-general",
-                "--max_epochs", "20",
-                "--no_early_stop"
-
-                // "--D.reward.args.scorer=soft_vqa",
-                // "--D.datamodule.args.data_dir=data_dir/okvqa/vqg/legacy/helpful_1104before",
-                // "--D.datamodule.args.train_name=train_2k_rl_general-caption.json",
-                // "--M.pretrain.path=weights/vqg_lm/llama2-13B_legacy-data_val_loss=0.608_epoch=4.ckpt.full",
-                // "--ckpt_name_prefix", "debug",
-                // "--run_name","llama2-13B_llama2-7B_legacy-general_freeze",
-                // "--max_epochs", "20",
-                // "--no_early_stop"
 
             ],
             "presentation": {"group": "VQG-Helpful-Train"}
@@ -503,12 +691,6 @@
                 // "--resume_ckpt","llama_llama2_2k_lora32_vqa_acc=41.900_epoch=0.ckpt",
                 // "--predict_output_name", "rl_2k_vqa_acc=41.900_sample_train-full_generated_vq.json",
                 // "--D.datamodule.args.predict_name=../train_full.json",
-
-                "--D.datamodule.args.data_dir=data_dir/aokvqa/vqg",
-                "--predict_output_dir", "output/aokvqa/vqg/helpful",
-                "--D.datamodule.args.predict_name=dev_full.json",
-                "--M.config.use_cache=True",
-                
             ],
             "presentation": {"group": "VQG-RL"}
         },
@@ -569,47 +751,16 @@
             "presentation": {"group": "VQG-LM"}
         },
         {
-            "name": "VQG LM train(llama2-13B)",
-            "type": "python",
-            "request": "launch",
-            "program": "main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"5"},
-            "args": [
-                "--stage","train",
-                "--batch_size","16",
-                "--max_epochs","10",
-                "--disable_linear_schedule",
-                "--log_every_n_steps", "1",
-                "--model_config", "llama2-13b-qlora",
-                "--data_config", "vqg",
-                "--ckpt_save_path", "weights/vqg_lm",
-                "--save_full_model",
-                // "--project", "VQG-LM",
-                // "--ckpt_name_prefix", "llama2-13B_new-data",
-                // "--run_name", "llama2-13B_new-data",
-                // "--D.datamodule.args.data_dir=data_dir/okvqa/vqg",
-                // "--D.datamodule.args.train_name=sft/train_part.json",
-
-                "--ckpt_name_prefix", "llama2-13B_legacy-data",
-                "--run_name", "llama2-13B_new-data",
-                "--D.datamodule.args.data_dir=data_dir/okvqa/vqg",
-                "--D.datamodule.args.train_name=legacy/helpful_1104before/train_part_sft_general-caption.json",
-            ],
-            "presentation": {"group": "VQG-LM"}
-        },
-        {
             "name": "VQG LM predict(llama)",
             "type": "python",
             "request": "launch",
             "program": "main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES":"0"},
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
             "args": [
                 "--stage","predict",
-                "--batch_size","1",
+                "--batch_size","16",
                 "--model_config", "llama-7b-qlora",
                 "--data_config", "vqg",
                 "--project", "VQG-LM",
@@ -631,7 +782,7 @@
             "presentation": {"group": "VQG-LM"}
         },
         {
-            "name": "VQG LM predict(llama2-13B)",
+            "name": "DuIE train (chatglm)",
             "type": "python",
             "request": "launch",
             "program": "main.py",
@@ -639,20 +790,38 @@
             "justMyCode": false,
             "env": {"CUDA_VISIBLE_DEVICES":"5"},
             "args": [
-                "--stage","predict",
-                "--batch_size","24",
-                "--model_config", "llama2-13b-qlora",
-                "--data_config", "vqg",
-                "--project", "VQG-LM",
-                "--D.datamodule.args.data_dir=data_dir/okvqa/vqg",
-                "--D.datamodule.args.predict_name=legacy/1104/dev_full_general-caption.json",
-
-                "--ckpt_save_path", "weights/vqg_lm",
-                "--resume_ckpt","llama2-13B_legacy-data_val_loss=0.608_epoch=4.ckpt",
-                "--predict_output_dir", "output/okvqa/vqg/lm",
-                "--predict_output_name", "sft_13B_loss=0.700_dev-full-legacy-general-caption_generated_vq.json",
+                "--stage","train",
+                "--batch_size","1",
+                "--val_batch_size","8",
+                "--model_config", "chatglm2-6b-qlora",
+                "--data_config", "duee-fin",
+                "--ckpt_save_path", "weights/duie",
+                "--ckpt_name_prefix", "chatglm",
+                "--D.metrics.eval_calculate=false",
+                "--project", "DuIE",
+                "--run_name","chatglm2_use_cache"
             ],
-            "presentation": {"group": "VQG-LM"}
+            "presentation": {"group": "DuIE"}
+        },
+        {
+            "name": "DuIE test (chatglm)",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {"CUDA_VISIBLE_DEVICES":"6"},
+            "args": [
+                "--stage","test",
+                "--batch_size","8",
+                "--num_beams","1",
+                "--model_config", "chatglm2-6b-qlora",
+                "--data_config", "duee-fin",
+                "--ckpt_save_path", "weights/duie",
+                "--resume_ckpt","chatglm_val_loss=0.193_epoch=1.ckpt",
+                "--D.datamodule.args.test_name=train_mini.json"
+            ],
+            "presentation": {"group": "DuIE"}
         }
     ]
 }

@@ -9,7 +9,7 @@ from lightning.pytorch.loggers.wandb import WandbLogger
 
 from omegaconf import OmegaConf
 
-from misc.callback import RenameBestCheckpointCallback
+from util.callback import RenameBestCheckpointCallback
 
 # 添加src目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))   
@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(BASE_DIR))              # 将src目录添加到�
 
 from rl_model import ReinforcementLMModel
 from datas import load_datamodule
-from misc import utils
+import arg_utils, utils.utils as utils
 
 utils.set_random_seed(20200819)
 os.environ["TOKENIZERS_PARALLELISM"] = "True"
@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument("--warmup_rate", type=float, default=0.1, help="warmup rate (default: 0.1)")
 
     parser.add_argument("--train_num", type=int, default=-1,help="train data number")
-    parser.add_argument("--val_num", type=int, default=-1,help="train data number")
+    parser.add_argument("--dev_num", type=int, default=-1,help="train data number")
 
     parser.add_argument("--ckpt_name_prefix",  type=str, default="base", help="ckpt save name")
     parser.add_argument("--ckpt_save_path", type=str, default="{}/weights".format(WORKING_DIR), help="ckpt_save_path")
@@ -63,8 +63,8 @@ def parse_args():
     print('--------config----------')
     model_config = OmegaConf.load("config/model/"+args.model_config_name+".yml")
     data_config = OmegaConf.load("config/data/"+args.data_config_name+".yml")
-    args.__setattr__("model_config", utils.merge_model_config(extra_args, model_config))
-    args.__setattr__("data_config", utils.merge_data_config(extra_args, data_config))
+    args.__setattr__("model_config", arg_utils.merge_model_config(extra_args, model_config))
+    args.__setattr__("data_config", arg_utils.merge_data_config(extra_args, data_config))
 
     print(args)
     print('--------config----------')
@@ -74,7 +74,7 @@ def parse_args():
 def main(args):
     model = ReinforcementLMModel(args)
     model.automatic_optimization = False
-    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size, args.train_num, args.val_num)
+    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size)
 
     if args.stage == "train":
         # ============= train 训练模型==============

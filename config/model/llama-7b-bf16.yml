@@ -7,8 +7,7 @@ tokenizer:
   manual_add_eos_token: true
 
 config:
-  use_cache: false
-  pretraining_tp: 1 
+  use_cache: true
 
 precision:
   dtype: torch.bfloat16

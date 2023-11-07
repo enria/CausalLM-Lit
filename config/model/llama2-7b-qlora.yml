@@ -1,6 +1,6 @@
 pretrain:
-  path: /vault/pretrains/huggingface/huggyllama/llama-7b
-  tokenizer_path: /vault/pretrains/huggingface/huggyllama/llama-7b
+  path: /storage/pretrains/huggingface/meta-llama/Llama-2-7b-hf
+  tokenizer_path: /storage/pretrains/huggingface/meta-llama/Llama-2-7b-hf
   args:
     trust_remote_code: true
 
@@ -8,7 +8,8 @@ tokenizer:
   manual_add_eos_token: true
 
 config:
-  use_cache: true
+  use_cache: false
+  do_sample: false
 
 quant:
   bf16: true

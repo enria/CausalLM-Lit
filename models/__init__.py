@@ -5,20 +5,19 @@ import torch
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    BitsAndBytesConfig,
-    AutoModel
+    BitsAndBytesConfig
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import AutoModelForCausalLMWithValueHead
 
 from .mixins import PeftModuleMixin
-from utils import chain_get
+from misc.utils import chain_get
 
 
 def load_model(config): 
     tokenizer = AutoTokenizer.from_pretrained(config.pretrain.path, trust_remote_code=True)
     tokenizer.padding_side="left"
-    if "tokenizer" in config:
+    if "tokenizer" in config: # 设定特殊 token
         for k in config.tokenizer:
             setattr(tokenizer, k, config.tokenizer[k])
     if tokenizer.pad_token is None:
@@ -117,7 +116,7 @@ def load_reinforcement_model(config):
     bnb_config = None
     if "quant" in config:
         bnb_config = BitsAndBytesConfig(
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=torch.bfloat16,
             **config.quant )
         
     peft_config = None
@@ -158,3 +157,49 @@ def load_reward_model(config):
     else:
         reward_model = class_obj()
     return reward_model
+
+def load_dpo_model(config):
+    tokenizer_path = config.pretrain.path
+    if "tokenizer_path" in config.pretrain:
+        tokenizer_path = config.pretrain.tokenizer_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
+    if "tokenizer" in config:
+        if "pad_token" in config.tokenizer:
+            tokenizer.pad_token = config.tokenizer.pad_token
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    bnb_config = None
+    if "quant" in config:
+        bnb_config = BitsAndBytesConfig(
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            **config.quant )
+        
+    peft_config = None
+    if "peft" in config:
+        peft_config = LoraConfig(
+            **config.peft,
+            task_type="CAUSAL_LM")
+        
+    model = AutoModelForCausalLM.from_pretrained(
+        config.pretrain.path,
+        quantization_config=bnb_config,
+        torch_dtype=torch.float16,
+        trust_remote_code=True,
+        load_in_4bit=chain_get(config, ["quant", "load_in_4bit"], False),
+        is_trainable=True
+    )
+
+    model_ref = AutoModelForCausalLM.from_pretrained(
+        config.pretrain.path,
+        torch_dtype=torch.float16,
+        quantization_config=bnb_config,
+        trust_remote_code=True,
+    )
+    
+    if "config" in config:
+        for k in config.config:
+            setattr(model.pretrained_model.config, k, config.config[k])
+            setattr(model_ref.pretrained_model.config, k, config.config[k])
+
+    return model, model_ref, tokenizer

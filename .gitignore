@@ -4,3 +4,5 @@ lightning_logs
 data_dir
 output
 *.pyc
+.contribution
+projects

@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(BASE_DIR))              # 将src目录添加到�
 
 from lm_model import CausalLMModel
 from datas import load_datamodule
-import arg_utils, utils
+from misc import utils
 
 utils.set_random_seed(20200819)
 os.environ["TOKENIZERS_PARALLELISM"] = "True"

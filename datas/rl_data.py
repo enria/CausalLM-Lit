@@ -64,7 +64,7 @@ class RLDM(SequenceDM):
                 if path.exists(val_path):
                     val_data = json.load(open(val_path))
                 else:
-                    shuffle = Random(42).shuffle
+                    shuffle = Random(1994).shuffle
                     shuffle(train_data)
                     pivot = int(len(train_data)*0.9)
                     train_data, val_data = train_data[:pivot], train_data[pivot:]

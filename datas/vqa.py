@@ -2,6 +2,7 @@ import os
 import os.path as path
 import json
 from random import Random
+from collections import Counter
 
 import numpy as np
 import lightning.pytorch as pl
@@ -47,11 +48,12 @@ class OKVQADM(SequenceDM, MetricDataMixin):
     def convert(self, item, keep_origin=False):
         sample = { 
             "input":  self.generate_prompt(item),
-            "output": item["answer"] 
+            "output": item.get("answer", "") 
         }
         if keep_origin:
             sample["origin"] = item
         return sample
+    
     def load_samples(self, keep_origin=False):
         question_file = path.join(self.data_dir, "questions.json")
         caption_file = path.join(self.data_dir, f"{self.caption_type}_caption.json")
@@ -77,7 +79,87 @@ class OKVQADM(SequenceDM, MetricDataMixin):
             item["answers"] = all_answer_index[item['question_id']]
 
         samples = [self.convert(x, keep_origin) for x in samples]
+        return samples
 
+    def setup(self, stage: str):
+        if stage in [pl.trainer.states.TrainerFn.FITTING, pl.trainer.states.TrainerFn.TESTING]:
+            train_data = self.load_samples(keep_origin=True)
+
+            shuffle = Random(42).shuffle
+            shuffle(train_data)
+            # train_data = train_data[:1000]
+            pivot = int(len(train_data)*0.9)
+            train_data, val_data = train_data[:pivot], train_data[pivot:]
+            # self.truncate_data(train_data, True)
+            # self.truncate_data(val_data, False)
+
+            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=442, input_truncation_side="right")
+            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=442, mode="eval", input_truncation_side="right")
+            print("train_length:", len(self.train_data))
+            print("valid_length:", len(self.val_data))
+            self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
+            if stage == pl.trainer.states.TrainerFn.TESTING:
+                self.test_data = self.val_data
+
+        elif stage==pl.trainer.states.TrainerFn.PREDICTING:
+            predict_data = self.load_samples(keep_origin=True)
+            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=442, mode="predict")
+            print("precition_length:", len(self.predict_data))
+    
+    def calculate_metrics(self, output):
+        accs = []
+        for gold, pred, origin in output:
+            pred = pred.strip()
+            answers= origin["answers"]
+            counter = 0
+            for ii in range(len(answers)):
+                if pred == answers[ii]: counter+=1
+            accs.append(min(1.,float(counter)*0.3))
+        return {"vqa_acc": np.mean(accs)*100}
+
+
+class AOKVQADM(SequenceDM, MetricDataMixin):
+    def __init__(self, caption_type="ofa", **args):
+        super().__init__(**args)
+        self.caption_type = caption_type
+
+    def generate_prompt(self, item):
+        template = ("Below is an instruction that describes a task, paired with an input that provides further context. "
+                    "Write a response that appropriately completes the request. "
+                    "### Instruction: {instruction} "
+                    "### Input: {input} "
+                    "### Response: "
+        )
+        return template.format(instruction=item["question"], input=item["caption"])
+    
+    def convert(self, item, keep_origin=False):
+        sample = { 
+            "input":  self.generate_prompt(item),
+            "output": item.get("answer", "") 
+        }
+        if keep_origin:
+            sample["origin"] = item
+        return sample
+    
+    def load_samples(self, keep_origin=False):
+        question_file = path.join(self.data_dir, "questions.json")
+        caption_file = path.join(self.data_dir, f"{self.caption_type}_caption.json")
+
+        with open(question_file) as fin:
+            samples = json.load(fin)
+        with open(caption_file) as fin:
+            samples_caption = json.load(fin)
+
+        def most_answer(answers):
+            counter = Counter(answers)
+            return counter.most_common(1)[0][0]
+
+        for item in samples:
+            item["caption"] = samples_caption[item['question_id']]["caption"]
+            item["answer"] = most_answer(item["direct_answers"])
+            item["answers"] = item["direct_answers"]
+
+        samples = [self.convert(x, keep_origin) for x in samples]
         return samples
 
     def setup(self, stage: str):
@@ -101,7 +183,7 @@ class OKVQADM(SequenceDM, MetricDataMixin):
             predict_data = self.load_samples(keep_origin=True)
             self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=442, mode="predict")
             print("precition_length:", len(self.predict_data))
-
+    
     def calculate_metrics(self, output):
         accs = []
         for gold, pred, origin in output:
@@ -112,4 +194,3 @@ class OKVQADM(SequenceDM, MetricDataMixin):
                 if pred == answers[ii]: counter+=1
             accs.append(min(1.,float(counter)*0.3))
         return {"vqa_acc": np.mean(accs)*100}
-    

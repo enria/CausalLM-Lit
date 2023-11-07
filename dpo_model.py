@@ -4,13 +4,13 @@ from typing import Any, Mapping, Optional
 import time
 
 import lightning.pytorch as pl
-from trl import PPOTrainer, PPOConfig
+from trl import DPOTrainer, DPOConfig
 import numpy as np
 import torch
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
 
 from models import load_reinforcement_model, load_reward_model
-from misc.utils import Timer, chain_get, torch_gc
+from utils.utils import Timer, chain_get, torch_gc
 import wandb
 
 
@@ -28,16 +28,15 @@ class ReinforcementLMModel(pl.LightningModule):
         self.model.is_peft_model=False # TODO 
         self.reward_model = load_reward_model(config.data_config)
 
-        ppo_config = PPOConfig(learning_rate=config.model_config.optim.lr,
+        dpo_config = DPOConfig(learning_rate=config.model_config.optim.lr,
                                batch_size=config.batch_size,
                                mini_batch_size=config.mini_batch_size,
                                gradient_accumulation_steps=config.accumulate_grads)
 
-        self.ppo_trainer = PPOTrainer(config = ppo_config,
+        self.ppo_trainer = DPOTrainer(config = dpo_config,
                                       model=self.model, 
                                       ref_model= self.ref_model, 
                                       tokenizer= self.tokenizer)
-        # self.ppo_trainer = PPOTrainer(config, self.model, self.ref_model, self.tokenizer)
 
         self.validation_step_outputs = []
         print("CausalLM model init: done.")
@@ -57,7 +56,6 @@ class ReinforcementLMModel(pl.LightningModule):
             "top_p": 0.5,
             "do_sample": True,
             "pad_token_id": self.tokenizer.eos_token_id,
-            "eos_token_id": self.tokenizer.eos_token_id,
             "max_new_tokens": self.trainer.datamodule.max_new_tokens
         }
 
@@ -137,8 +135,8 @@ class ReinforcementLMModel(pl.LightningModule):
         logs.update(stats)
         logs["trainer/global_step"] = self.trainer.global_step
 
-        table_rows = [list(r) for r in zip(batch["inputs"], preds, [r.item() for r in rewards])]
-        logs.update({"game_log": wandb.Table(columns=["query", "response", "reward"], rows=table_rows)})
+        # table_rows = [list(r) for r in zip(batch["inputs"], preds, [r.item() for r in rewards])]
+        # logs.update({"game_log": wandb.Table(columns=["query", "response", "reward"], rows=table_rows)})
         
         self.trainer.logger.experiment.log(logs)
     

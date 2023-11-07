@@ -1,0 +1,10 @@
+datamodule:
+  class_name: instruction.AccuracyDM
+  args:
+    data_dir: data_dir/vqa
+    test_name: okvqa_dev.json
+
+metrics:
+  name: acc
+  eval_calculate: true
+  

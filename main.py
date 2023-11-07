@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(BASE_DIR))              # 将src目录添加到�
 
 from lm_model import CausalLMModel
 from datas import load_datamodule
-import arg_utils, utils
+from misc import utils
 
 utils.set_random_seed(20200819)
 os.environ["TOKENIZERS_PARALLELISM"] = "True"
@@ -30,6 +30,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=16, help="input batch size for training (default: 16)")
     parser.add_argument("--val_batch_size", type=int, default=-1, help="input batch size for val and test (default: batch_size)")
     parser.add_argument("--max_epochs", type=int, default=20, help="the max epochs for training and test (default: 5)")
+    parser.add_argument("--sanity_step", type=int, default=2, help="sanity check step (default: 2)")
 
     parser.add_argument("--model_config_name", type=str, required=True, help="model config file name")
     parser.add_argument("--data_config_name", type=str, required=True, help="model config file name")
@@ -59,8 +60,8 @@ def parse_args():
     print('--------config----------')
     model_config = OmegaConf.load("config/model/"+args.model_config_name+".yml")
     data_config = OmegaConf.load("config/data/"+args.data_config_name+".yml")
-    args.__setattr__("model_config", arg_utils.merge_model_config(extra_args, model_config))
-    args.__setattr__("data_config", arg_utils.merge_data_config(extra_args, data_config))
+    args.__setattr__("model_config", utils.merge_model_config(extra_args, model_config))
+    args.__setattr__("data_config", utils.merge_data_config(extra_args, data_config))
     utils.print_config(args)
     print('--------config----------')
 
@@ -68,7 +69,7 @@ def parse_args():
 
 def main(args):
     model = CausalLMModel(args)
-    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size)
+    data_module = load_datamodule(args.data_config, model.tokenizer, args.batch_size, args.val_batch_size, args.train_num, args.dev_num)
 
     if args.stage == "train":
         # ============= train 训练模型==============
@@ -101,7 +102,7 @@ def main(args):
         callbacks = [ckpt_callback, early_stopping, lr_logger]
         
         if args.rename_best_ckpt:
-            from callbacks import RenameBestCheckpointCallback
+            from utils.callback import RenameBestCheckpointCallback
             best_ckpt_callback = RenameBestCheckpointCallback(ckpt_callback)
             callbacks.append(best_ckpt_callback)
         
@@ -119,10 +120,9 @@ def main(args):
             max_epochs=args.max_epochs,
             callbacks=callbacks,
             logger = logger,
-            devices=1,
             log_every_n_steps=args.log_every_n_steps,
-            strategy="ddp",
-            accumulate_grad_batches=args.accumulate_grads
+            accumulate_grad_batches=args.accumulate_grads,
+            num_sanity_val_steps=args.sanity_step
         )
 
         # 开始训练模型
@@ -150,6 +150,7 @@ def main(args):
             args.predict_output_name = args.resume_ckpt.rsplit(".",1)[0]+".json"
 
         predict_checkpoint=os.path.join(args.ckpt_save_path ,args.resume_ckpt)   # 加载已保存的模型继续训练
+        # predict_checkpoint = None
 
         # 设置训练器
         trainer = pl.Trainer(devices=1)

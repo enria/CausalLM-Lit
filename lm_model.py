@@ -47,6 +47,10 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
     @property
     def is_peft_mode(self):
         return "peft" in self.config.model_config
+    
+    @property
+    def do_sample(self):
+        return self.config.model_config.config.get("do_sample", False)
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         outputs = self.model(
@@ -65,15 +69,16 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         if self.calculate_metric:
-            inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.device)
-            outputs = self.model.generate(input_ids=inputs['input_ids'], 
-                                        attention_mask=inputs['attention_mask'], 
+            # inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.device)
+            inputs = self.tokenizer.batch_encode_plus(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.device)
+            outputs = self.model.generate(input_ids=inputs["input_ids"], 
+                                        attention_mask=inputs["attention_mask"], 
                                         num_beams=self.config.num_beams, 
-                                        max_new_tokens=self.trainer.datamodule.max_new_tokens, 
-                                        # use_cache=True, # chatglm2 一定要使用cache
+                                        max_new_tokens=self.trainer.datamodule.max_new_tokens,
                                         return_dict_in_generate=True,
                                         output_hidden_states=True, 
                                         output_scores=True,
+                                        do_sample=False,
                                         pad_token_id=self.tokenizer.eos_token_id)
             
             preds = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 
@@ -109,14 +114,15 @@ class CausalLMModel(PeftModuleMixin, pl.LightningModule):
         inputs = self.tokenizer(batch["inputs"], return_tensors="pt", padding=True, truncation=True).to(self.model.device)
         if datamodule is None:
             datamodule = self.trainer.datamodule
+        
         outputs = self.model.generate(input_ids=inputs['input_ids'], 
                                     attention_mask=inputs['attention_mask'], 
                                     num_beams=self.config.num_beams, 
                                     max_new_tokens=datamodule.max_new_tokens, 
-                                    use_cache=True,
                                     return_dict_in_generate=True,
                                     output_hidden_states=True, 
                                     output_scores=True,
+                                    do_sample=False,
                                     pad_token_id=self.tokenizer.eos_token_id)
         
         pred = [self.tokenizer.decode(output_ids, skip_special_tokens=True) 

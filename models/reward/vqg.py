@@ -2,7 +2,7 @@ import torch
 import requests
 import json
 import numpy as np
-from utils import Timer
+from misc.utils import Timer
 
 class VQAConfidenceRewardModule():
     def __init__(self, api_url, reward_batch_size=8) -> None:
@@ -41,6 +41,10 @@ class VQAConfidenceRewardModule():
     
 
 class VisualHintHelpfulRewardModule():
+    # prompt_template = ("You are asked a visual question about an image. I will provide you the caption of the image and some useful visual hints. Please use your best judgement to answer the question. Image Caption: {caption}\n"
+    # "{example}\n"
+    # "Question: {question}")
+    # system_setting = """Imagine you are a blind but intelligent question answering system. The answer should be in one or two words. I want you just reply the answer like a robot."""
     prompt_template = ("Image Caption: {caption}\n"
     "{example}\n"
     "Question: {question}\n"
@@ -60,27 +64,30 @@ Image Caption: A busy city street with many people walking around.
 Question: Why might someone go to this place?
 (Must return an answer. The final answer should be 1 or 2 words (maximum 2 words). If you are not sure, you can guess the most plausible answer) 
 Answer: shop"""
-
+    
+    
     def __init__(self, api_url, vqa_batch_size=8, llm_batch_size=4, llm="chatglm", scorer="vqa") -> None:
         self.api_url = api_url
         self.vqa_batch_size = vqa_batch_size
         self.llm_batch_size = llm_batch_size
 
         import sys
-        sys.path.append("/home/yadong/workspace/okvqa/llm")
-        sys.path.append("/home/yadong/workspace/okvqa/vqa4ok")
+        sys.path.append("/home/yadong/workspace/LLM/client")
+        sys.path.append("/home/yadong/workspace/CausalLM-Lit/projects/VHT")
 
-        from caption_vqa_llm import ChatGLMVQALLM, LLaMAVQALLM, ChatGPTVQALLM
+        from caption_vqa_llm import ChatGLMVQALLM, LLaMAVQALLM, ChatGPTVQALLM, LLaMA70VQALLM
         llm_cls = {
             ChatGLMVQALLM.name: ChatGLMVQALLM,
             LLaMAVQALLM.name: LLaMAVQALLM,
-            ChatGPTVQALLM.name: ChatGPTVQALLM
+            ChatGPTVQALLM.name: ChatGPTVQALLM,
+            ChatGPTVQALLM.name: ChatGPTVQALLM,
+            LLaMA70VQALLM.name: LLaMA70VQALLM
         }
 
         # llm = ChatGLMVQALLM(prompt_template, system_setting)
         self.llm = llm_cls[llm](self.prompt_template, self.system_setting)
 
-        sys.path.append("/home/yadong/workspace/okvqa/vqa4ok")
+        sys.path.append("/home/yadong/workspace/CausalLM-Lit/projects/VHT/evaluate")
         from evaluation import sample_evaluate
         self.evaluate = sample_evaluate
 
@@ -116,7 +123,7 @@ Answer: shop"""
             batch = []
             for item in batch_items:
                 question = item["question"]
-                caption = item["caption"]
+                caption = item["input"]
                 if use_hint: 
                     hints = [(i+1, q, a) for i,(q, a) in enumerate(zip([item["vq"]], [item["vqa"]]))]
                     hints_str = "Visual Hints: "+"\n".join([f"{i}. {q} {a}" for i,q,a in hints])
@@ -131,7 +138,7 @@ Answer: shop"""
                     response = self.llm.batch_inference(batch, refine=False)
                 for item, answer in zip(batch_items, response):
                     key = "hinted_answer" if use_hint else "origin_answer"
-                    item[key] = answer
+                    item[key] = answer 
             except BaseException as e:
                 print(e)
     
@@ -139,6 +146,9 @@ Answer: shop"""
         if self.scorer=="vqa":
             hard_score = self.evaluate(item["answers"],item[answer_key])[1]
             return hard_score
+        if self.scorer=="soft_vqa":
+            soft_score = self.evaluate(item["answers"],item[answer_key])[0]
+            return soft_score
         elif self.scorer=="bert":
             predict_answer = item[answer_key]
             bscore = bertscore([predict_answer]*len(item["answers"]), item["answers"])[-1] # p, r, f1

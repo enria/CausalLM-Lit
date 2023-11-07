@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from .mixins import PredictionSaveMixin
 
-class SequenceDataset(Dataset):
+class DPODataset(Dataset):
     def __init__(self, datas, tokenizer, max_length=1024, ignore_input_loss=True, ignore_label_id=-100, mode="train", input_truncation_side="right") -> None:
         super().__init__()
         self.datas = datas
@@ -112,12 +112,11 @@ class SequenceDataset(Dataset):
         return data_dict
 
 
-class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
+class DPODM(pl.LightningDataModule, PredictionSaveMixin):
     def __init__(self, data_dir: str = "", batch_size: int = 32, val_batch_size: int = -1, 
-                 tokenizer = None, max_length=1024, max_new_tokens = 100, input_truncation_side="right",
+                 tokenizer = None, max_length=1024, max_new_tokens = 10, input_truncation_side="right",
                  train_name="train.json", val_name="val.json", test_name="test.json", 
-                 predict_name="predict.json", predict_output_key="output",
-                 train_num=-1, val_num=-1):
+                 predict_name="predict.json", predict_output_key="output"):
         pl.LightningDataModule.__init__(self)
 
         self.data_dir = data_dir
@@ -135,23 +134,12 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
 
         self.batch_size = batch_size
         self.val_batch_size = val_batch_size if val_batch_size>0 else batch_size
-
-        self.train_num = train_num
-        self.val_num = val_num
     
     def convert(item, keep_origin=False):
         raise NotImplementedError
 
     def load_data(self, file):
         return json.load(open(file))
-    
-    def truncate_data(self, data, is_train=False):
-        if is_train:
-            if self.train_num>=0:
-                del data[self.train_num:]
-        else:
-            if self.val_num>=0:
-                del data[self.val_num:]
 
     def setup(self, stage: str):
         if stage in [pl.trainer.states.TrainerFn.FITTING]:
@@ -168,34 +156,29 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
                     train_data, val_data = train_data[:pivot], train_data[pivot:]
             else:
                 raise FileNotFoundError
-            
-            self.truncate_data(train_data, True)
-            self.truncate_data(val_data, False)
 
             train_data = [self.convert(x) for x in train_data]
             train_data = [item for item in train_data if item]
             val_data= [self.convert(x) for x in val_data]
             val_data = [item for item in val_data if item]
 
-            self.train_data = SequenceDataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side = self.input_truncation_side)
-            self.val_data = SequenceDataset(val_data, self.tokenizer, max_length=self.max_length, mode="val", input_truncation_side = self.input_truncation_side)
+            self.train_data = DPODataset(train_data, self.tokenizer, max_length=self.max_length, input_truncation_side = self.input_truncation_side)
+            self.val_data = DPODataset(val_data, self.tokenizer, max_length=self.max_length, mode="val", input_truncation_side = self.input_truncation_side)
             print("train_length:", len(self.train_data))
             print("valid_length:", len(self.val_data))
             self.train_dl = DataLoader(self.train_data, batch_size=self.batch_size, collate_fn=self.train_data.collate_fn)
         
         elif stage==pl.trainer.states.TrainerFn.TESTING:
             test_data = self.load_data(path.join(self.data_dir, self.test_name))
-            self.truncate_data(test_data, False)
             test_data = [self.convert(x) for x in test_data]
             test_data = [item for item in test_data if item]
-            self.test_data = SequenceDataset(test_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            self.test_data = DPODataset(test_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
             print("test_length:", len(self.test_data))
 
         elif stage==pl.trainer.states.TrainerFn.PREDICTING:
             predict_data = self.load_data(path.join(self.data_dir, self.predict_name))
-            self.truncate_data(predict_data, False)
             predict_data = [self.convert(x, keep_origin=True) for x in predict_data]
-            self.predict_data = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            self.predict_data = DPODataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
             print("precition_length:", len(self.predict_data))
 
     def train_dataloader(self):
@@ -214,7 +197,7 @@ class SequenceDM(pl.LightningDataModule, PredictionSaveMixin):
             predict_dataset = self.predict_data
         else:
             predict_data = [self.convert(item, keep_origin=True) for item in predict_data]
-            predict_dataset = SequenceDataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
+            predict_dataset = DPODataset(predict_data, self.tokenizer, max_length=self.max_length, mode="test", input_truncation_side = self.input_truncation_side)
         return DataLoader(predict_dataset, batch_size=self.val_batch_size, collate_fn=predict_dataset.collate_fn)
     
     def save_prediction(self, output, output_path):

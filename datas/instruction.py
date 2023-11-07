@@ -25,11 +25,14 @@ class InstructionDM(SequenceDM):
             f"### Instruction:\n{example['instruction']}\n\n### Response:\n"
         )
     
-    def convert(self, item, default_output=None):
-        return {
+    def convert(self, item, keep_origin=False):
+        result = {
             "input":  self.generate_prompt(item),
-            "output": item["output"] if default_output is None else item.get("output", default_output)
+            "output": item.get("output", "need_predict")
         }
+        if keep_origin:
+            result["origin"] = item
+        return result
 
 class AccuracyDM(InstructionDM, AccuracyDataMixin):
     pass
